@@ -1,32 +1,34 @@
 package main
 
 import (
-	"fmt"
-	"net"
+	"log"
+	"net/http"
+	"strings"
 
-	binrpc "github.com/florentchauveau/go-kamailio-binrpc"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 func main() {
-	var conn net.Conn
+	var (
+		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Short('l').Default(":9494").String()
+		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
+		scrapeURI     = kingpin.Flag("kamailio.scrape-uri", `URI on which to scrape kamailio. E.g. "unix:/var/run/kamailio/kamailio_ctl" or "tcp://localhost:2049"`).Short('u').Default("unix:/var/run/kamailio/kamailio_ctl").String()
+		methods       = kingpin.Flag("kamailio.methods", `Comma-separated list of methods to call. E.g. "tm.stats,sl.stats". Implemented: `+strings.Join(availableMethods, ",")).Short('m').Default("tm.stats,sl.stats,core.shmmem,core.uptime").String()
+		timeout       = kingpin.Flag("kamailio.timeout", "Timeout for trying to get stats from kamailio.").Short('t').Default("5s").Duration()
+	)
 
-	conn, err := net.Dial("tcp", "localhost:2049")
+	kingpin.Parse()
 
-	if err != nil {
-		panic(err)
-	}
-
-	cookie, err := binrpc.WritePacketString(conn, "tm.stats")
-
-	if err != nil {
-		panic(err)
-	}
-
-	records, err := binrpc.ReadPacket(conn, cookie)
+	c, err := NewCollector(*scrapeURI, *timeout, *methods)
 
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("records = %v", records)
+	prometheus.MustRegister(c)
+
+	http.Handle(*metricsPath, promhttp.Handler())
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
