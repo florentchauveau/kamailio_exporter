@@ -1,0 +1,45 @@
+---
+version: 2
+
+jobs:
+  test:
+    docker:
+    - image: circleci/golang:1.11
+
+    steps:
+    - checkout
+    - run: make promu
+    - run: make check_license style unused staticcheck build
+    - store_artifacts:
+        path: kamailio_exporter
+        destination: /build/kamailio_exporter
+    - run: rm -v kamailio_exporter
+
+  build:
+    machine: true
+    working_directory: /home/circleci/.go_workspace/src/github.com/florentchauveau/kamailio_exporter
+
+    steps:
+    - checkout
+    - run: make promu
+    - run: promu crossbuild -v
+    - persist_to_workspace:
+        root: .
+        paths:
+        - .build
+    - store_artifacts:
+        path: .build
+        destination: /build
+
+workflows:
+  version: 2
+  kamailio_exporter:
+    jobs:
+    - test:
+        filters:
+          tags:
+            only: /.*/
+    - build:
+        filters:
+          tags:
+            only: /.*/
