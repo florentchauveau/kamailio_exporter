@@ -23,9 +23,24 @@ jobs:
         root: .
         paths:
         - .build
+
+  release_tags:
+    docker:
+    - image: circleci/golang:1.11
+    working_directory: /go/src/github.com/prometheus/promu
+
+    steps:
+    - checkout
+    - run: mkdir -v -p ${HOME}/bin
+    - run: curl -L 'https://github.com/aktau/github-release/releases/download/v0.7.2/linux-amd64-github-release.tar.bz2' | tar xvjf - --strip-components 3 -C ${HOME}/bin
+    - run: echo 'export PATH=${HOME}/bin:${PATH}' >> ${BASH_ENV}
+    - run: make promu
+    - run: promu crossbuild tarballs
+    - run: promu checksum .tarballs
+    - run: promu release .tarballs
     - store_artifacts:
-        path: .build
-        destination: /build
+        path: .tarballs
+        destination: releases
 
 workflows:
   version: 2
@@ -38,4 +53,13 @@ workflows:
     - build:
         filters:
           tags:
-            only: /^v\d+\.\d+\.\d+$/
+            only: /.*/
+    - release_tags:
+        requires:
+        - test
+        - build
+        filters:
+          tags:
+            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
+          branches:
+            ignore: /.*/
