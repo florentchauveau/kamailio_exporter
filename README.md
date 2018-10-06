@@ -1,5 +1,6 @@
 # Kamailio Exporter for Prometheus
 [![CircleCI](https://circleci.com/gh/florentchauveau/kamailio_exporter.svg?style=shield)](https://circleci.com/gh/florentchauveau/kamailio_exporter)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/florentchauveau/go-kamailio-binrpc/blob/master/LICENSE)
 
 A [Kamailio](https://www.kamailio.org/) exporter for Prometheus.
 
@@ -7,7 +8,9 @@ It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/mod
 
 BINRPC is implemented in library https://github.com/florentchauveau/go-kamailio-binrpc.
 
-## Gettings Started
+## Getting Started
+
+Pre-built binaries are available in [releases](https://github.com/florentchauveau/kamailio_exporter/releases).
 
 To run it:
 ```bash
@@ -151,6 +154,15 @@ List of exposed metrics:
 # HELP kamailio_up Was the last scrape successful.
 # TYPE kamailio_up gauge
 ```
+
+## Compiling
+
+With go1.11+, clone the project and:
+```
+go build
+```
+
+Dependencies will be fetch automatically.
 
 ## Contributing
 
