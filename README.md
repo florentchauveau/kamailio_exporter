@@ -1,8 +1,11 @@
 # Kamailio Exporter for Prometheus
+[![CircleCI](https://circleci.com/gh/florentchauveau/kamailio_exporter.svg?style=shield)](https://circleci.com/gh/florentchauveau/kamailio_exporter)
 
-A [Kamailio](https://www.kamailio.org/) exporter for Prometheus. 
+A [Kamailio](https://www.kamailio.org/) exporter for Prometheus.
 
-It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/modules/stable/modules/ctl.html), implemented in https://github.com/florentchauveau/go-kamailio-binrpc.
+It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/modules/stable/modules/ctl.html) via the `ctl` module. 
+
+BINRPC is implemented in library https://github.com/florentchauveau/go-kamailio-binrpc.
 
 ## Gettings Started
 
@@ -12,7 +15,7 @@ To run it:
 ```
 
 Help on flags:
-```bash
+```
 ./kamailio_exporter --help
 
 Flags:
@@ -36,11 +39,9 @@ Flags:
 
 ## Usage
 
-The [CTL](http://kamailio.org/docs/modules/stable/modules/ctl.html) module must be loaded by the Kamailio instance.
+The [CTL](http://kamailio.org/docs/modules/stable/modules/ctl.html) module must be loaded by the Kamailio instance. If you are using `kamcmd` (and you probably are), the module is already loaded.
 
-By default (if no parameters are changed in the config file) it uses a Unix stream socket: `/var/run/kamailio/kamailio_ctl`. 
-
-Specify the scrape URI with the `--kamailio.scrape-uri` flag. Example:
+By default (if no parameters are changed in the config file), the `ctl` module exposes a Unix stream socket: `/var/run/kamailio/kamailio_ctl`. If you change it, specify the scrape URI with the `--kamailio.scrape-uri` flag. Example:
 
 ```
 ./kamailio_exporter -u "tcp://localhost:2049"
@@ -55,7 +56,7 @@ By default, the exporter will try to fetch values from the following commands:
 - `core.shmmem`
 - `core.uptime`
 
-If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/modules/dispatcher.html) module, you can enable it as well:
+If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/modules/dispatcher.html) module, you can enable `dispatcher.list` as well:
 
 ```bash
 ./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list"

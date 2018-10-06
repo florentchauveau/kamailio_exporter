@@ -9,15 +9,11 @@ jobs:
     steps:
     - checkout
     - run: make promu
-    - run: make check_license style unused staticcheck build
-    - store_artifacts:
-        path: kamailio_exporter
-        destination: /build/kamailio_exporter
-    - run: rm -v kamailio_exporter
+    - run: make style build
+    - run: rm -fv kamailio_exporter
 
   build:
     machine: true
-    working_directory: /home/circleci/.go_workspace/src/github.com/florentchauveau/kamailio_exporter
 
     steps:
     - checkout
@@ -42,4 +38,4 @@ workflows:
     - build:
         filters:
           tags:
-            only: /.*/
+            only: /^v\d+\.\d+\.\d+$/

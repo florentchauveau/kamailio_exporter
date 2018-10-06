@@ -72,11 +72,11 @@ kamcmd> core.shmmem
 type Collector struct {
 	URI     string
 	Timeout time.Duration
+	Methods []string
 
-	methods []string
-	url     *url.URL
-	mutex   sync.Mutex
-	conn    net.Conn
+	url   *url.URL
+	mutex sync.Mutex
+	conn  net.Conn
 
 	up            prometheus.Gauge
 	failedScrapes prometheus.Counter
@@ -217,9 +217,9 @@ func NewCollector(uri string, timeout time.Duration, methods string) (*Collector
 
 	c.url = url
 
-	c.methods = strings.Split(methods, ",")
+	c.Methods = strings.Split(methods, ",")
 
-	for _, method := range c.methods {
+	for _, method := range c.Methods {
 		found := false
 
 		for _, m := range availableMethods {
@@ -302,7 +302,7 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 
 	defer c.conn.Close()
 
-	for _, method := range c.methods {
+	for _, method := range c.Methods {
 		if _, found := metricsList[method]; !found {
 			panic("invalid method requested")
 		}
