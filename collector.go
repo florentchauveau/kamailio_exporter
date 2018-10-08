@@ -126,7 +126,7 @@ var (
 	}
 
 	metricsList = map[string][]Metric{
-		"tm.stats": []Metric{
+		"tm.stats": {
 			NewMetricGauge("current", "current transactions", "tm.stats"),
 			NewMetricCounter("total", "total transactions", "tm.stats"),
 			NewMetricCounter("total_local", "total_local transactions", "tm.stats"),
@@ -142,7 +142,7 @@ var (
 			NewMetricCounter("freed", "freed transactions", "tm.stats"),
 			NewMetricCounter("delayed_free", "delayed_free transactions", "tm.stats"),
 		},
-		"sl.stats": []Metric{
+		"sl.stats": {
 			NewMetricCounter("200", "200 replies counter", "sl.stats"),
 			NewMetricCounter("202", "202 replies counter", "sl.stats"),
 			NewMetricCounter("2xx", "2xx replies counter", "sl.stats"),
@@ -162,7 +162,7 @@ var (
 			NewMetricCounter("6xx", "6xx replies counter", "sl.stats"),
 			NewMetricCounter("xxx", "xxx replies counter", "sl.stats"),
 		},
-		"core.shmmem": []Metric{
+		"core.shmmem": {
 			NewMetricGauge("total", "total shared memory", "core.shmmem"),
 			NewMetricGauge("free", "free shared memory", "core.shmmem"),
 			NewMetricGauge("used", "used shared memory", "core.shmmem"),
@@ -170,10 +170,10 @@ var (
 			NewMetricGauge("max_used", "max_used shared memory", "core.shmmem"),
 			NewMetricGauge("fragments", "fragments shared memory", "core.shmmem"),
 		},
-		"core.uptime": []Metric{
+		"core.uptime": {
 			NewMetricCounter("uptime", "uptime in seconds", "core.uptime"),
 		},
-		"dispatcher.list": []Metric{
+		"dispatcher.list": {
 			NewMetricGauge("target", "target status", "dispatcher.list", dispatcherTargetLabels...),
 		},
 	}
@@ -376,7 +376,7 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	case "core.uptime":
 		for _, item := range items {
 			i, _ := item.Value.Int()
-			metrics[item.Key] = []MetricValue{MetricValue{Value: float64(i)}}
+			metrics[item.Key] = []MetricValue{{Value: float64(i)}}
 		}
 	case "dispatcher.list":
 		targets, err := parseDispatcherTargets(items)
