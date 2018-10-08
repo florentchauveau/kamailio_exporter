@@ -128,6 +128,7 @@ var (
 	metricsList = map[string][]Metric{
 		"tm.stats": {
 			NewMetricGauge("current", "current transactions", "tm.stats"),
+			NewMetricGauge("waiting", "waiting transactions", "tm.stats"),
 			NewMetricCounter("total", "total transactions", "tm.stats"),
 			NewMetricCounter("total_local", "total_local transactions", "tm.stats"),
 			NewMetricCounter("rpl_received", "rpl_received transactions", "tm.stats"),
