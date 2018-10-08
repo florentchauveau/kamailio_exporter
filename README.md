@@ -68,90 +68,50 @@ If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/module
 
 List of exposed metrics:
 ```
-# HELP kamailio_core_shmmem_fragments fragments shared memory
+# HELP kamailio_core_shmmem_fragments Number of fragments in shared memory.
 # TYPE kamailio_core_shmmem_fragments gauge
-# HELP kamailio_core_shmmem_free free shared memory
+# HELP kamailio_core_shmmem_free Free shared memory.
 # TYPE kamailio_core_shmmem_free gauge
-# HELP kamailio_core_shmmem_max_used max_used shared memory
+# HELP kamailio_core_shmmem_max_used Max used shared memory.
 # TYPE kamailio_core_shmmem_max_used gauge
-# HELP kamailio_core_shmmem_real_used real_used shared memory
+# HELP kamailio_core_shmmem_real_used Real used shared memory.
 # TYPE kamailio_core_shmmem_real_used gauge
-# HELP kamailio_core_shmmem_total total shared memory
+# HELP kamailio_core_shmmem_total Total shared memory.
 # TYPE kamailio_core_shmmem_total gauge
-# HELP kamailio_core_shmmem_used used shared memory
+# HELP kamailio_core_shmmem_used Used shared memory.
 # TYPE kamailio_core_shmmem_used gauge
-# HELP kamailio_core_uptime_uptime_total uptime in seconds
+# HELP kamailio_core_uptime_uptime_total Uptime in seconds.
 # TYPE kamailio_core_uptime_uptime_total counter
-# HELP kamailio_dispatcher_list_target target status
+# HELP kamailio_dispatcher_list_target Target status.
 # TYPE kamailio_dispatcher_list_target gauge
-# HELP kamailio_exporter_failed_scrapes Number of failed kamailio scrapes.
+# HELP kamailio_exporter_failed_scrapes Number of failed kamailio scrapes
 # TYPE kamailio_exporter_failed_scrapes counter
-# HELP kamailio_exporter_total_scrapes Current total kamailio scrapes.
+# HELP kamailio_exporter_total_scrapes Number of total kamailio scrapes
 # TYPE kamailio_exporter_total_scrapes counter
-# HELP kamailio_sl_stats_200_total 200 replies counter
-# TYPE kamailio_sl_stats_200_total counter
-# HELP kamailio_sl_stats_202_total 202 replies counter
-# TYPE kamailio_sl_stats_202_total counter
-# HELP kamailio_sl_stats_2xx_total 2xx replies counter
-# TYPE kamailio_sl_stats_2xx_total counter
-# HELP kamailio_sl_stats_300_total 300 replies counter
-# TYPE kamailio_sl_stats_300_total counter
-# HELP kamailio_sl_stats_301_total 301 replies counter
-# TYPE kamailio_sl_stats_301_total counter
-# HELP kamailio_sl_stats_302_total 302 replies counter
-# TYPE kamailio_sl_stats_302_total counter
-# HELP kamailio_sl_stats_400_total 400 replies counter
-# TYPE kamailio_sl_stats_400_total counter
-# HELP kamailio_sl_stats_401_total 401 replies counter
-# TYPE kamailio_sl_stats_401_total counter
-# HELP kamailio_sl_stats_403_total 403 replies counter
-# TYPE kamailio_sl_stats_403_total counter
-# HELP kamailio_sl_stats_404_total 404 replies counter
-# TYPE kamailio_sl_stats_404_total counter
-# HELP kamailio_sl_stats_407_total 407 replies counter
-# TYPE kamailio_sl_stats_407_total counter
-# HELP kamailio_sl_stats_408_total 408 replies counter
-# TYPE kamailio_sl_stats_408_total counter
-# HELP kamailio_sl_stats_483_total 483 replies counter
-# TYPE kamailio_sl_stats_483_total counter
-# HELP kamailio_sl_stats_4xx_total 4xx replies counter
-# TYPE kamailio_sl_stats_4xx_total counter
-# HELP kamailio_sl_stats_500_total 500 replies counter
-# TYPE kamailio_sl_stats_500_total counter
-# HELP kamailio_sl_stats_5xx_total 5xx replies counter
-# TYPE kamailio_sl_stats_5xx_total counter
-# HELP kamailio_sl_stats_6xx_total 6xx replies counter
-# TYPE kamailio_sl_stats_6xx_total counter
-# HELP kamailio_sl_stats_xxx_total xxx replies counter
-# TYPE kamailio_sl_stats_xxx_total counter
-# HELP kamailio_tm_stats_2xx_total 2xx transactions
-# TYPE kamailio_tm_stats_2xx_total counter
-# HELP kamailio_tm_stats_3xx_total 3xx transactions
-# TYPE kamailio_tm_stats_3xx_total counter
-# HELP kamailio_tm_stats_4xx_total 4xx transactions
-# TYPE kamailio_tm_stats_4xx_total counter
-# HELP kamailio_tm_stats_5xx_total 5xx transactions
-# TYPE kamailio_tm_stats_5xx_total counter
-# HELP kamailio_tm_stats_6xx_total 6xx transactions
-# TYPE kamailio_tm_stats_6xx_total counter
-# HELP kamailio_tm_stats_created_total created transactions
+# HELP kamailio_sl_stats_codes_total Per-code counters.
+# TYPE kamailio_sl_stats_codes_total counter
+# HELP kamailio_tm_stats_codes_total Per-code counters.
+# TYPE kamailio_tm_stats_codes_total counter
+# HELP kamailio_tm_stats_created_total Created transactions.
 # TYPE kamailio_tm_stats_created_total counter
-# HELP kamailio_tm_stats_current current transactions
+# HELP kamailio_tm_stats_current Current transactions.
 # TYPE kamailio_tm_stats_current gauge
-# HELP kamailio_tm_stats_delayed_free_total delayed_free transactions
+# HELP kamailio_tm_stats_delayed_free_total Delayed free transactions.
 # TYPE kamailio_tm_stats_delayed_free_total counter
-# HELP kamailio_tm_stats_freed_total freed transactions
+# HELP kamailio_tm_stats_freed_total Freed transactions.
 # TYPE kamailio_tm_stats_freed_total counter
-# HELP kamailio_tm_stats_rpl_generated_total rpl_generated transactions
+# HELP kamailio_tm_stats_rpl_generated_total Number of reply generated.
 # TYPE kamailio_tm_stats_rpl_generated_total counter
-# HELP kamailio_tm_stats_rpl_received_total rpl_received transactions
+# HELP kamailio_tm_stats_rpl_received_total Number of reply received.
 # TYPE kamailio_tm_stats_rpl_received_total counter
-# HELP kamailio_tm_stats_rpl_sent_total rpl_sent transactions
+# HELP kamailio_tm_stats_rpl_sent_total Number of reply sent.
 # TYPE kamailio_tm_stats_rpl_sent_total counter
-# HELP kamailio_tm_stats_total_local_total total_local transactions
+# HELP kamailio_tm_stats_total_local_total Total local transactions.
 # TYPE kamailio_tm_stats_total_local_total counter
-# HELP kamailio_tm_stats_total_total total transactions
+# HELP kamailio_tm_stats_total_total Total transactions.
 # TYPE kamailio_tm_stats_total_total counter
+# HELP kamailio_tm_stats_waiting Waiting transactions.
+# TYPE kamailio_tm_stats_waiting gauge
 # HELP kamailio_up Was the last scrape successful.
 # TYPE kamailio_up gauge
 ```

@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,7 +18,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-/*
+/* Sample output
+
 kamcmd> tm.stats
 {
         current: 1
@@ -89,13 +92,12 @@ type Metric struct {
 	Name   string
 	Help   string
 	Method string // kamailio method associated with the metric
-	Labels []string
 }
 
 // MetricValue is the value of a metric, with its labels.
 type MetricValue struct {
 	Value  float64
-	Labels []string
+	Labels map[string]string
 }
 
 // DispatcherTarget is a target of the dispatcher module.
@@ -110,11 +112,9 @@ const (
 )
 
 var (
-	dispatcherTargetLabels = []string{
-		"uri",
-		"flags",
-		"setid",
-	}
+	// this is used to match codes returned by Kamailio
+	// examples: "200" or "6xx" or even "xxx"
+	codeRegex = regexp.MustCompile("^[0-9x]{3}$")
 
 	// implemented RPC methods
 	availableMethods = []string{
@@ -127,54 +127,34 @@ var (
 
 	metricsList = map[string][]Metric{
 		"tm.stats": {
-			NewMetricGauge("current", "current transactions", "tm.stats"),
-			NewMetricCounter("total", "total transactions", "tm.stats"),
-			NewMetricCounter("total_local", "total_local transactions", "tm.stats"),
-			NewMetricCounter("rpl_received", "rpl_received transactions", "tm.stats"),
-			NewMetricCounter("rpl_generated", "rpl_generated transactions", "tm.stats"),
-			NewMetricCounter("rpl_sent", "rpl_sent transactions", "tm.stats"),
-			NewMetricCounter("6xx", "6xx transactions", "tm.stats"),
-			NewMetricCounter("5xx", "5xx transactions", "tm.stats"),
-			NewMetricCounter("4xx", "4xx transactions", "tm.stats"),
-			NewMetricCounter("3xx", "3xx transactions", "tm.stats"),
-			NewMetricCounter("2xx", "2xx transactions", "tm.stats"),
-			NewMetricCounter("created", "created transactions", "tm.stats"),
-			NewMetricCounter("freed", "freed transactions", "tm.stats"),
-			NewMetricCounter("delayed_free", "delayed_free transactions", "tm.stats"),
+			NewMetricGauge("current", "Current transactions.", "tm.stats"),
+			NewMetricGauge("waiting", "Waiting transactions.", "tm.stats"),
+			NewMetricCounter("total", "Total transactions.", "tm.stats"),
+			NewMetricCounter("total_local", "Total local transactions.", "tm.stats"),
+			NewMetricCounter("rpl_received", "Number of reply received.", "tm.stats"),
+			NewMetricCounter("rpl_generated", "Number of reply generated.", "tm.stats"),
+			NewMetricCounter("rpl_sent", "Number of reply sent.", "tm.stats"),
+			NewMetricCounter("created", "Created transactions.", "tm.stats"),
+			NewMetricCounter("freed", "Freed transactions.", "tm.stats"),
+			NewMetricCounter("delayed_free", "Delayed free transactions.", "tm.stats"),
+			NewMetricCounter("codes", "Per-code counters.", "tm.stats"),
 		},
 		"sl.stats": {
-			NewMetricCounter("200", "200 replies counter", "sl.stats"),
-			NewMetricCounter("202", "202 replies counter", "sl.stats"),
-			NewMetricCounter("2xx", "2xx replies counter", "sl.stats"),
-			NewMetricCounter("300", "300 replies counter", "sl.stats"),
-			NewMetricCounter("301", "301 replies counter", "sl.stats"),
-			NewMetricCounter("302", "302 replies counter", "sl.stats"),
-			NewMetricCounter("400", "400 replies counter", "sl.stats"),
-			NewMetricCounter("401", "401 replies counter", "sl.stats"),
-			NewMetricCounter("403", "403 replies counter", "sl.stats"),
-			NewMetricCounter("404", "404 replies counter", "sl.stats"),
-			NewMetricCounter("407", "407 replies counter", "sl.stats"),
-			NewMetricCounter("408", "408 replies counter", "sl.stats"),
-			NewMetricCounter("483", "483 replies counter", "sl.stats"),
-			NewMetricCounter("4xx", "4xx replies counter", "sl.stats"),
-			NewMetricCounter("500", "500 replies counter", "sl.stats"),
-			NewMetricCounter("5xx", "5xx replies counter", "sl.stats"),
-			NewMetricCounter("6xx", "6xx replies counter", "sl.stats"),
-			NewMetricCounter("xxx", "xxx replies counter", "sl.stats"),
+			NewMetricCounter("codes", "Per-code counters.", "sl.stats"),
 		},
 		"core.shmmem": {
-			NewMetricGauge("total", "total shared memory", "core.shmmem"),
-			NewMetricGauge("free", "free shared memory", "core.shmmem"),
-			NewMetricGauge("used", "used shared memory", "core.shmmem"),
-			NewMetricGauge("real_used", "real_used shared memory", "core.shmmem"),
-			NewMetricGauge("max_used", "max_used shared memory", "core.shmmem"),
-			NewMetricGauge("fragments", "fragments shared memory", "core.shmmem"),
+			NewMetricGauge("total", "Total shared memory.", "core.shmmem"),
+			NewMetricGauge("free", "Free shared memory.", "core.shmmem"),
+			NewMetricGauge("used", "Used shared memory.", "core.shmmem"),
+			NewMetricGauge("real_used", "Real used shared memory.", "core.shmmem"),
+			NewMetricGauge("max_used", "Max used shared memory.", "core.shmmem"),
+			NewMetricGauge("fragments", "Number of fragments in shared memory.", "core.shmmem"),
 		},
 		"core.uptime": {
-			NewMetricCounter("uptime", "uptime in seconds", "core.uptime"),
+			NewMetricCounter("uptime", "Uptime in seconds.", "core.uptime"),
 		},
 		"dispatcher.list": {
-			NewMetricGauge("target", "target status", "dispatcher.list", dispatcherTargetLabels...),
+			NewMetricGauge("target", "Target status.", "dispatcher.list"),
 		},
 	}
 )
@@ -186,7 +166,6 @@ func NewMetricGauge(name string, help string, method string, labels ...string) M
 		name,
 		help,
 		method,
-		labels,
 	}
 }
 
@@ -197,7 +176,6 @@ func NewMetricCounter(name string, help string, method string, labels ...string)
 		name,
 		help,
 		method,
-		labels,
 	}
 }
 
@@ -247,13 +225,13 @@ func NewCollector(uri string, timeout time.Duration, methods string) (*Collector
 	c.totalScrapes = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: namespace,
 		Name:      "exporter_total_scrapes",
-		Help:      "Current total kamailio scrapes.",
+		Help:      "Number of total kamailio scrapes",
 	})
 
 	c.failedScrapes = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: namespace,
 		Name:      "exporter_failed_scrapes",
-		Help:      "Number of failed kamailio scrapes.",
+		Help:      "Number of failed kamailio scrapes",
 	})
 
 	return &c, nil
@@ -279,6 +257,40 @@ func (m *Metric) ExportedName() string {
 		strings.Replace(m.Method, ".", "_", -1),
 		suffix,
 	)
+}
+
+// LabelKeys returns the keys of the labels of m
+func (m *MetricValue) LabelKeys() []string {
+	if len(m.Labels) == 0 {
+		return nil
+	}
+
+	var list []string
+
+	for key := range m.Labels {
+		list = append(list, key)
+	}
+
+	// we need to keep the keys and values in a consistent order
+	// (a go map does have an order)
+	sort.Strings(list)
+
+	return list
+}
+
+// LabelValues returns the values of the labels of m
+func (m *MetricValue) LabelValues() []string {
+	if len(m.Labels) == 0 {
+		return nil
+	}
+
+	var list []string
+
+	for _, key := range m.LabelKeys() {
+		list = append(list, m.Labels[key])
+	}
+
+	return list
 }
 
 // scrape will connect to the kamailio instance if needed, and push metrics to the Prometheus channel.
@@ -322,10 +334,10 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 
 			for _, metricValue := range metricValues {
 				metric, err := prometheus.NewConstMetric(
-					prometheus.NewDesc(metricDef.ExportedName(), metricDef.Help, metricDef.Labels, nil),
+					prometheus.NewDesc(metricDef.ExportedName(), metricDef.Help, metricValue.LabelKeys(), nil),
 					metricDef.Kind,
 					metricValue.Value,
-					metricValue.Labels...,
+					metricValue.LabelValues()...,
 				)
 
 				if err != nil {
@@ -367,10 +379,26 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	metrics := make(map[string][]MetricValue)
 
 	switch method {
-	case "tm.stats":
-		fallthrough
 	case "sl.stats":
 		fallthrough
+	case "tm.stats":
+		for _, item := range items {
+			i, _ := item.Value.Int()
+
+			if codeRegex.MatchString(item.Key) {
+				// this item is a "code" statistic, eg "200" or "6xx"
+				metrics["codes"] = append(metrics["codes"],
+					MetricValue{
+						Value: float64(i),
+						Labels: map[string]string{
+							"code": item.Key,
+						},
+					},
+				)
+			} else {
+				metrics[item.Key] = []MetricValue{{Value: float64(i)}}
+			}
+		}
 	case "core.shmmem":
 		fallthrough
 	case "core.uptime":
@@ -392,10 +420,10 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 		for _, target := range targets {
 			mv := MetricValue{
 				Value: 1,
-				Labels: []string{
-					target.URI,
-					target.Flags,
-					strconv.Itoa(target.SetID),
+				Labels: map[string]string{
+					"uri":   target.URI,
+					"flags": target.Flags,
+					"setid": strconv.Itoa(target.SetID),
 				},
 			}
 
