@@ -9,7 +9,7 @@ It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/mod
 
 BINRPC is implemented in library https://github.com/florentchauveau/go-kamailio-binrpc.
 
-# Getting Started
+## Getting Started
 
 Pre-built binaries are available in [releases](https://github.com/florentchauveau/kamailio_exporter/releases).
 
@@ -41,7 +41,7 @@ Flags:
   -t, --kamailio.timeout=5s  Timeout for trying to get stats from kamailio.
   ```
 
-# Usage
+## Usage
 
 The [CTL](http://kamailio.org/docs/modules/stable/modules/ctl.html) module must be loaded by the Kamailio instance. If you are using `kamcmd` (and you probably are), the module is already loaded.
 
@@ -51,7 +51,7 @@ By default (if no parameters are changed in the config file), the `ctl` module e
 ./kamailio_exporter -u "tcp://localhost:2049"
 ```
 
-# Metrics
+## Metrics
 
 By default, the exporter will try to fetch values from the following commands:
 
@@ -116,7 +116,7 @@ List of exposed metrics:
 # TYPE kamailio_up gauge
 ```
 
-# Compiling
+## Compiling
 
 With go1.11+, clone the project and:
 ```
@@ -125,10 +125,10 @@ go build
 
 Dependencies will be fetch automatically.
 
-# Contributing
+## Contributing
 
 Feel free to send pull requests.
 
-# How it works
+## How it works
 
 How we implemented the exporter is explained in this blog post: https://blog.callr.tech/kamailio-exporter-for-prometheus/
