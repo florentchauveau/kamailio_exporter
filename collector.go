@@ -123,6 +123,7 @@ var (
 		"core.shmmem",
 		"core.uptime",
 		"dispatcher.list",
+		"tls.info",
 	}
 
 	metricsList = map[string][]Metric{
@@ -155,6 +156,10 @@ var (
 		},
 		"dispatcher.list": {
 			NewMetricGauge("target", "Target status.", "dispatcher.list"),
+		},
+		"tls.info": {
+			NewMetricGauge("opened_connections", "TLS Opened Connections.", "tls.info"),
+			NewMetricGauge("max_connections", "TLS Max Connections.", "tls.info"),
 		},
 	}
 )
@@ -399,6 +404,8 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 				metrics[item.Key] = []MetricValue{{Value: float64(i)}}
 			}
 		}
+	case "tls.info":
+		fallthrough
 	case "core.shmmem":
 		fallthrough
 	case "core.uptime":
