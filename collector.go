@@ -68,6 +68,15 @@ kamcmd> core.shmmem
         max_used: 13323296
         fragments: 44546
 }
+kamcmd> core.tcp_info
+{
+	readers: 8
+	max_connections: 4096
+	max_tls_connections: 2048
+	opened_connections: 595
+	opened_tls_connections: 401
+	write_queued_bytes: 0
+}
 */
 
 // Collector implements prometheus.Collector (see below).
@@ -122,6 +131,7 @@ var (
 		"sl.stats",
 		"core.shmmem",
 		"core.uptime",
+		"core.tcp_info",
 		"dispatcher.list",
 	}
 
@@ -152,6 +162,14 @@ var (
 		},
 		"core.uptime": {
 			NewMetricCounter("uptime", "Uptime in seconds.", "core.uptime"),
+		},
+		"core.tcp_info": {
+			NewMetricGauge("readers", "Total TCP readers.", "core.tcp_info"),
+			NewMetricGauge("max_connections", "Maximum TCP connections", "core.tcp_info"),
+			NewMetricGauge("max_tls_connections", "Maximum TLS connections.", "core.tcp_info"),
+			NewMetricGauge("opened_connections", "Opened TCP connections.", "core.tcp_info"),
+			NewMetricGauge("opened_tls_connections", "Opened TLS connections.", "core.tcp_info"),
+			NewMetricGauge("write_queued_bytes", "Write queued bytes.", "core.tcp_info"),
 		},
 		"dispatcher.list": {
 			NewMetricGauge("target", "Target status.", "dispatcher.list"),
@@ -400,6 +418,8 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 			}
 		}
 	case "core.shmmem":
+		fallthrough
+	case "core.tcp_info":
 		fallthrough
 	case "core.uptime":
 		for _, item := range items {
