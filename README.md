@@ -37,7 +37,7 @@ Flags:
   -m, --kamailio.methods="tm.stats,sl.stats,core.shmmem,core.uptime"
                              Comma-separated list of methods to call. E.g.
                              "tm.stats,sl.stats". Implemented:
-                             tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list
+                             tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info
   -t, --kamailio.timeout=5s  Timeout for trying to get stats from kamailio.
   ```
 
@@ -63,7 +63,7 @@ By default, the exporter will try to fetch values from the following commands:
 If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/modules/dispatcher.html) module, you can enable `dispatcher.list` as well:
 
 ```bash
-./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list"
+./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info"
 ```
 
 List of exposed metrics:
@@ -114,6 +114,10 @@ List of exposed metrics:
 # TYPE kamailio_tm_stats_waiting gauge
 # HELP kamailio_up Was the last scrape successful.
 # TYPE kamailio_up gauge
+# HELP kamailio_tls_info_opened_connections Number of opened tls connections.
+# TYPE kamailio_tls_info_opened_connections gauge
+# HELP kamailio_tls_info_max_connections Number of max tls connections.
+# TYPE kamailio_tls_info_max_connections gauge
 ```
 
 ## Compiling
