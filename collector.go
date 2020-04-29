@@ -68,6 +68,14 @@ kamcmd> core.shmmem
         max_used: 13323296
         fragments: 44546
 }
+kamcmd dlg.stats_active
+{
+	starting: 152
+	connecting: 674
+	answering: 0
+	ongoing: 512
+	all: 1338
+}
 */
 
 // Collector implements prometheus.Collector (see below).
@@ -124,6 +132,7 @@ var (
 		"core.uptime",
 		"dispatcher.list",
 		"tls.info",
+		"dlg.stats_active",
 	}
 
 	metricsList = map[string][]Metric{
@@ -160,6 +169,13 @@ var (
 		"tls.info": {
 			NewMetricGauge("opened_connections", "TLS Opened Connections.", "tls.info"),
 			NewMetricGauge("max_connections", "TLS Max Connections.", "tls.info"),
+		},
+		"dlg.stats_active": {
+			NewMetricGauge("starting", "Dialogs starting.", "dlg.stats_active"),
+			NewMetricGauge("connecting", "Dialogs connecting.", "dlg.stats_active"),
+			NewMetricGauge("answering", "Dialogs answering.", "dlg.stats_active"),
+			NewMetricGauge("ongoing", "Dialogs ongoing.", "dlg.stats_active"),
+			NewMetricGauge("all", "Dialogs all.", "dlg.stats_active"),
 		},
 	}
 )
@@ -407,6 +423,8 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	case "tls.info":
 		fallthrough
 	case "core.shmmem":
+		fallthrough
+	case "dlg.stats_active":
 		fallthrough
 	case "core.uptime":
 		for _, item := range items {

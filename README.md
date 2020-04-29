@@ -37,7 +37,7 @@ Flags:
   -m, --kamailio.methods="tm.stats,sl.stats,core.shmmem,core.uptime"
                              Comma-separated list of methods to call. E.g.
                              "tm.stats,sl.stats". Implemented:
-                             tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info
+                             tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info,dlg.stats_active
   -t, --kamailio.timeout=5s  Timeout for trying to get stats from kamailio.
   ```
 
@@ -53,6 +53,7 @@ By default (if no parameters are changed in the config file), the `ctl` module e
 
 ## Metrics
 
+### Default metrics
 By default, the exporter will try to fetch values from the following commands:
 
 - `tm.stats` (requires the [TM](http://kamailio.org/docs/modules/stable/modules/tm.html) module)
@@ -60,10 +61,19 @@ By default, the exporter will try to fetch values from the following commands:
 - `core.shmmem`
 - `core.uptime`
 
-If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/modules/dispatcher.html) module, you can enable `dispatcher.list` as well:
+### Module specific metrics
+#### Dispatcher
+If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/modules/dispatcher.html) module, you can enable `dispatcher.list`.
 
+#### TLS
+For [TLS]( https://kamailio.org/docs/modules/stable/modules/tls.html ) you can enable `tls.info`.
+
+#### Dialog
+For [DIALOG](http://kamailio.org/docs/modules/stable/modules/dialog.html) module, you can enable `dlg.stats_active`.
+
+### Example for using non-default metrics
 ```bash
-./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info"
+./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info,dlg.stats_active"
 ```
 
 List of exposed metrics:
@@ -118,6 +128,16 @@ List of exposed metrics:
 # TYPE kamailio_tls_info_opened_connections gauge
 # HELP kamailio_tls_info_max_connections Number of max tls connections.
 # TYPE kamailio_tls_info_max_connections gauge
+# HELP kamailio_dlg_stats_active_all Dialogs all.
+# TYPE kamailio_dlg_stats_active_all gauge
+# HELP kamailio_dlg_stats_active_answering Dialogs answering.
+# TYPE kamailio_dlg_stats_active_answering gauge
+# HELP kamailio_dlg_stats_active_connecting Dialogs connecting.
+# TYPE kamailio_dlg_stats_active_connecting gauge
+# HELP kamailio_dlg_stats_active_ongoing Dialogs ongoing.
+# TYPE kamailio_dlg_stats_active_ongoing gauge
+# HELP kamailio_dlg_stats_active_starting Dialogs starting.
+# TYPE kamailio_dlg_stats_active_starting gauge
 ```
 
 ## Compiling
