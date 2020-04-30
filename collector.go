@@ -77,6 +77,14 @@ kamcmd> core.tcp_info
 	opened_tls_connections: 401
 	write_queued_bytes: 0
 }
+kamcmd dlg.stats_active
+{
+	starting: 152
+	connecting: 674
+	answering: 0
+	ongoing: 512
+	all: 1338
+}
 */
 
 // Collector implements prometheus.Collector (see below).
@@ -133,6 +141,8 @@ var (
 		"core.uptime",
 		"core.tcp_info",
 		"dispatcher.list",
+		"tls.info",
+		"dlg.stats_active",
 	}
 
 	metricsList = map[string][]Metric{
@@ -173,6 +183,17 @@ var (
 		},
 		"dispatcher.list": {
 			NewMetricGauge("target", "Target status.", "dispatcher.list"),
+		},
+		"tls.info": {
+			NewMetricGauge("opened_connections", "TLS Opened Connections.", "tls.info"),
+			NewMetricGauge("max_connections", "TLS Max Connections.", "tls.info"),
+		},
+		"dlg.stats_active": {
+			NewMetricGauge("starting", "Dialogs starting.", "dlg.stats_active"),
+			NewMetricGauge("connecting", "Dialogs connecting.", "dlg.stats_active"),
+			NewMetricGauge("answering", "Dialogs answering.", "dlg.stats_active"),
+			NewMetricGauge("ongoing", "Dialogs ongoing.", "dlg.stats_active"),
+			NewMetricGauge("all", "Dialogs all.", "dlg.stats_active"),
 		},
 	}
 )
@@ -417,9 +438,15 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 				metrics[item.Key] = []MetricValue{{Value: float64(i)}}
 			}
 		}
+	case "tls.info":
+		fallthrough
 	case "core.shmmem":
 		fallthrough
+<<<<<<< HEAD
 	case "core.tcp_info":
+=======
+	case "dlg.stats_active":
+>>>>>>> master
 		fallthrough
 	case "core.uptime":
 		for _, item := range items {
