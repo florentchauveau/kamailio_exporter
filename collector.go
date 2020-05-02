@@ -442,11 +442,9 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 		fallthrough
 	case "core.shmmem":
 		fallthrough
-<<<<<<< HEAD
 	case "core.tcp_info":
-=======
+		fallthrough
 	case "dlg.stats_active":
->>>>>>> master
 		fallthrough
 	case "core.uptime":
 		for _, item := range items {
