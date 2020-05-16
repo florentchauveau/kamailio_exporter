@@ -34,10 +34,10 @@ Flags:
                              URI on which to scrape kamailio. E.g.
                              "unix:/var/run/kamailio/kamailio_ctl" or
                              "tcp://localhost:2049"
-  -m, --kamailio.methods="tm.stats,sl.stats,core.shmmem,core.uptime"
+  -m, --kamailio.methods="tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info"
                              Comma-separated list of methods to call. E.g.
                              "tm.stats,sl.stats". Implemented:
-                             tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info,dlg.stats_active
+                             tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info,dispatcher.list,tls.info,dlg.stats_active
   -t, --kamailio.timeout=5s  Timeout for trying to get stats from kamailio.
   ```
 
@@ -76,8 +76,15 @@ For [DIALOG](http://kamailio.org/docs/modules/stable/modules/dialog.html) module
 ./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info,dlg.stats_active"
 ```
 
-List of exposed metrics:
+If you want more information regarding TCP and TLS connections, you can use `core.tcp_info` as well:
+
+```bash
+./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info"
 ```
+
+List of exposed metrics:
+
+```bash
 # HELP kamailio_core_shmmem_fragments Number of fragments in shared memory.
 # TYPE kamailio_core_shmmem_fragments gauge
 # HELP kamailio_core_shmmem_free Free shared memory.
@@ -124,6 +131,18 @@ List of exposed metrics:
 # TYPE kamailio_tm_stats_waiting gauge
 # HELP kamailio_up Was the last scrape successful.
 # TYPE kamailio_up gauge
+# HELP kamailio_core_tcp_info_readers Total TCP readers.
+# TYPE kamailio_core_tcp_info_readers gauge
+# HELP kamailio_core_tcp_info_max_connections Maximum TCP connections.
+# TYPE kamailio_core_tcp_info_max_connections gauge
+# HELP kamailio_core_tcp_info_max_tls_connections Maximum TLS connections.
+# TYPE kamailio_core_tcp_info_max_tls_connections gauge
+# HELP kamailio_core_tcp_info_max_opened_connections Opened TCP connections.
+# TYPE kamailio_core_tcp_info_max_opened_connections gauge
+# HELP kamailio_core_tcp_info_max_opened_tls_connections Opened TLS connections.
+# TYPE kamailio_core_tcp_info_max_opened_tls_connections gauge
+# HELP kamailio_core_tcp_info_max_write_queued_bytes Write queued bytes.
+# TYPE kamailio_core_tcp_info_max_write_queued_bytes gauge
 # HELP kamailio_tls_info_opened_connections Number of opened tls connections.
 # TYPE kamailio_tls_info_opened_connections gauge
 # HELP kamailio_tls_info_max_connections Number of max tls connections.
@@ -143,7 +162,8 @@ List of exposed metrics:
 ## Compiling
 
 With go1.11+, clone the project and:
-```
+
+```bash
 go build
 ```
 
