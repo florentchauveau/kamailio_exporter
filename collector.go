@@ -124,6 +124,13 @@ type DispatcherTarget struct {
 	SetID int
 }
 
+// DMQPeer is a peer for the dmq module
+type DMQPeer struct {
+	Host   string
+	Status string
+	Local int
+}
+
 const (
 	namespace = "kamailio"
 )
@@ -143,6 +150,7 @@ var (
 		"dispatcher.list",
 		"tls.info",
 		"dlg.stats_active",
+		"dmq.list_nodes"
 	}
 
 	metricsList = map[string][]Metric{
@@ -194,6 +202,10 @@ var (
 			NewMetricGauge("answering", "Dialogs answering.", "dlg.stats_active"),
 			NewMetricGauge("ongoing", "Dialogs ongoing.", "dlg.stats_active"),
 			NewMetricGauge("all", "Dialogs all.", "dlg.stats_active"),
+		},
+		"dmq.list_nodes": {
+			NewMetricGauge("status", "DMQ peer Status", "dmq.list_nodes"),
+			NewMetricGauge("local", "DMQ local", "dmq.list_nodes"),
 		},
 	}
 )
@@ -446,6 +458,33 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 		fallthrough
 	case "dlg.stats_active":
 		fallthrough
+	case "dmq.list_nodes":
+		peers, err := parseDMQPeers(items)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(peers) == 0 {
+			break
+		}
+		for _, peer := range peers {
+			mv := MetricValue{
+				Value: 1,
+				Labels: map[string]string{
+					"host":   peer.Host,
+					"status": peer.Status,
+					"local":  peer.Local,
+				},
+			}
+
+			metrics["peer"] = append(metrics["peer"], mv)
+		}
+	}
+
+	return metrics, nil
+}
+
 	case "core.uptime":
 		for _, item := range items {
 			i, _ := item.Value.Int()
@@ -482,6 +521,93 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 // parseDispatcherTargets parses the "dispatcher.list" result and returns a list of targets.
 func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, error) {
 	var result []DispatcherTarget
+
+	for _, item := range items {
+		if item.Key != "RECORDS" {
+			continue
+		}
+
+		sets, err := item.Value.StructItems()
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item = range sets {
+			if item.Key != "SET" {
+				continue
+			}
+
+			setItems, err := item.Value.StructItems()
+
+			if err != nil {
+				return nil, err
+			}
+
+			var setID int
+			var targets []DispatcherTarget
+
+			for _, set := range setItems {
+				if set.Key == "ID" {
+					if setID, err = set.Value.Int(); err != nil {
+						return nil, err
+					}
+				} else if set.Key == "TARGETS" {
+					destinations, err := set.Value.StructItems()
+
+					if err != nil {
+						return nil, err
+					}
+
+					for _, destination := range destinations {
+						if destination.Key != "DEST" {
+							continue
+						}
+
+						props, err := destination.Value.StructItems()
+
+						if err != nil {
+							return nil, err
+						}
+
+						target := DispatcherTarget{}
+
+						for _, prop := range props {
+							switch prop.Key {
+							case "URI":
+								target.URI, _ = prop.Value.String()
+							case "FLAGS":
+								target.Flags, _ = prop.Value.String()
+							}
+						}
+
+						targets = append(targets, target)
+					}
+				}
+			}
+
+			if setID == 0 {
+				return nil, errors.New("missing set ID while parsing dispatcher.list")
+			}
+
+			if len(targets) == 0 {
+				continue
+			}
+
+			for _, target := range targets {
+				target.SetID = setID
+				result = append(result, target)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+
+// parseDispatcherTargets parses the "dispatcher.list" result and returns a list of targets.
+func parseDMQPeers(items []binrpc.StructItem) ([]DMQPeer, error) {
+	var result []DMQPeer
 
 	for _, item := range items {
 		if item.Key != "RECORDS" {
