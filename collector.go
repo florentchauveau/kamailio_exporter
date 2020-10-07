@@ -124,8 +124,8 @@ type DispatcherTarget struct {
 	SetID int
 }
 
-// DMQPeer is a peer for the dmq module
-type DMQPeer struct {
+// DMQNode is a peer for the dmq module
+type DMQNode struct {
 	Host   string
 	Status string
 	Local int
@@ -205,7 +205,6 @@ var (
 		},
 		"dmq.list_nodes": {
 			NewMetricGauge("status", "DMQ peer Status", "dmq.list_nodes"),
-			NewMetricGauge("local", "DMQ local", "dmq.list_nodes"),
 		},
 	}
 )
@@ -459,8 +458,7 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	case "dlg.stats_active":
 		fallthrough
 	case "dmq.list_nodes":
-		peers, err := parseDMQPeers(items)
-
+		peers, err := parseDMQNodes(items)
 		if err != nil {
 			return nil, err
 		}
@@ -605,89 +603,14 @@ func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, erro
 }
 
 
-// parseDispatcherTargets parses the "dispatcher.list" result and returns a list of targets.
-func parseDMQPeers(items []binrpc.StructItem) ([]DMQPeer, error) {
-	var result []DMQPeer
+// parseDMQNodes parses the "dmq.list_nodes" result and returns a list of nodes
+func parseDMQNodes(items []binrpc.StructItem) ([]DMQNode, error) {
+	var result []DMQNode
 
 	for _, item := range items {
-		if item.Key != "RECORDS" {
-			continue
-		}
+		fmt.Printf(item)
 
-		sets, err := item.Value.StructItems()
-
-		if err != nil {
-			return nil, err
-		}
-
-		for _, item = range sets {
-			if item.Key != "SET" {
-				continue
-			}
-
-			setItems, err := item.Value.StructItems()
-
-			if err != nil {
-				return nil, err
-			}
-
-			var setID int
-			var targets []DispatcherTarget
-
-			for _, set := range setItems {
-				if set.Key == "ID" {
-					if setID, err = set.Value.Int(); err != nil {
-						return nil, err
-					}
-				} else if set.Key == "TARGETS" {
-					destinations, err := set.Value.StructItems()
-
-					if err != nil {
-						return nil, err
-					}
-
-					for _, destination := range destinations {
-						if destination.Key != "DEST" {
-							continue
-						}
-
-						props, err := destination.Value.StructItems()
-
-						if err != nil {
-							return nil, err
-						}
-
-						target := DispatcherTarget{}
-
-						for _, prop := range props {
-							switch prop.Key {
-							case "URI":
-								target.URI, _ = prop.Value.String()
-							case "FLAGS":
-								target.Flags, _ = prop.Value.String()
-							}
-						}
-
-						targets = append(targets, target)
-					}
-				}
-			}
-
-			if setID == 0 {
-				return nil, errors.New("missing set ID while parsing dispatcher.list")
-			}
-
-			if len(targets) == 0 {
-				continue
-			}
-
-			for _, target := range targets {
-				target.SetID = setID
-				result = append(result, target)
-			}
-		}
-	}
-
+  }
 	return result, nil
 }
 
