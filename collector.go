@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/syslog"
 	"net"
 	"net/url"
 	"regexp"
@@ -150,7 +151,7 @@ var (
 		"dispatcher.list",
 		"tls.info",
 		"dlg.stats_active",
-		"dmq.list_nodes"
+		"dmq.list_nodes",
 	}
 
 	metricsList = map[string][]Metric{
@@ -409,16 +410,24 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	if err != nil {
 		return nil, err
 	}
+	logwriter, e := syslog.New(syslog.LOG_NOTICE, "keith")
+	if e == nil {
+		log.SetOutput(logwriter)
+	}
+	log.Print(records)
+	// we expect just 1 record of type map, except for dmq.list_nodes
 
-	// we expect just 1 record of type map
 	if len(records) == 2 && records[0].Type == binrpc.TypeInt && records[0].Value.(int) == 500 {
 		return nil, fmt.Errorf(`invalid response for method "%s": [500] %s`, method, records[1].Value.(string))
 	} else if len(records) != 1 {
-		return nil, fmt.Errorf(`invalid response for method "%s", expected %d record, got %d`,
-			method, 1, len(records),
-		)
-	}
+		if method == "dmq.list_nodes" {
 
+		} else {
+		    return nil, fmt.Errorf(`invalid response for method "%s", expected %d record, got %d`,
+			  method, 1, len(records),
+		    )
+	  }
+	}
 	// all methods implemented in this exporter return a struct
 	items, err := records[0].StructItems()
 
@@ -458,31 +467,26 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	case "dlg.stats_active":
 		fallthrough
 	case "dmq.list_nodes":
-		peers, err := parseDMQNodes(items)
+		nodes, err := parseDMQNodes(items)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(peers) == 0 {
+		if len(nodes) == 0 {
 			break
 		}
-		for _, peer := range peers {
+		for _, node := range nodes {
 			mv := MetricValue{
 				Value: 1,
 				Labels: map[string]string{
-					"host":   peer.Host,
-					"status": peer.Status,
-					"local":  peer.Local,
+					"host":   node.Host,
+					"status": node.Status,
+					"local": strconv.Itoa(node.Local),
 				},
 			}
 
-			metrics["peer"] = append(metrics["peer"], mv)
+			metrics["node"] = append(metrics["node"], mv)
 		}
-	}
-
-	return metrics, nil
-}
-
 	case "core.uptime":
 		for _, item := range items {
 			i, _ := item.Value.Int()
@@ -606,10 +610,12 @@ func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, erro
 // parseDMQNodes parses the "dmq.list_nodes" result and returns a list of nodes
 func parseDMQNodes(items []binrpc.StructItem) ([]DMQNode, error) {
 	var result []DMQNode
-
+	logwriter, e := syslog.New(syslog.LOG_NOTICE, "keith")
+  if e == nil {
+		log.SetOutput(logwriter)
+  }
 	for _, item := range items {
-		fmt.Printf(item)
-
+	    log.Print(item)
   }
 	return result, nil
 }
