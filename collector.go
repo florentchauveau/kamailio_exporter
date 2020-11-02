@@ -14,7 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	binrpc "github.com/florentchauveau/go-kamailio-binrpc/v2"
+	binrpc "github.com/florentchauveau/go-kamailio-binrpc/v3"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
