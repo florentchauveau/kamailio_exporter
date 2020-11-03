@@ -1,7 +1,7 @@
 module github.com/florentchauveau/kamailio_exporter
 
 require (
-	github.com/florentchauveau/go-kamailio-binrpc/v3 v3.0.1
+	github.com/florentchauveau/go-kamailio-binrpc/v3 v3.1.0
 	github.com/google/go-cmp v0.5.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect

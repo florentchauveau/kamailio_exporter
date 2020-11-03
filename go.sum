@@ -59,10 +59,8 @@ github.com/envoyproxy/go-control-plane v0.6.9/go.mod h1:SBwIajubJHhxtWwsL9s8ss4s
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
-github.com/florentchauveau/go-kamailio-binrpc/v3 v3.0.0 h1:6K1m2xeYYv43d8Jw+vYCgV2maOCNEpluXyu/3PNNoDg=
-github.com/florentchauveau/go-kamailio-binrpc/v3 v3.0.0/go.mod h1:6bXSjcAoRRGHfwur58BkJCs8xcQb3C7UFeVySvyFL9I=
-github.com/florentchauveau/go-kamailio-binrpc/v3 v3.0.1 h1:cVMx+X04DeAExbZw9PsYPELCKa9xG0uFJ/KZ4M7etYU=
-github.com/florentchauveau/go-kamailio-binrpc/v3 v3.0.1/go.mod h1:6bXSjcAoRRGHfwur58BkJCs8xcQb3C7UFeVySvyFL9I=
+github.com/florentchauveau/go-kamailio-binrpc/v3 v3.1.0 h1:q11PZiOL0MO6qo2fDARWO0HxGpdxaO1lG+Xl2cyO7iU=
+github.com/florentchauveau/go-kamailio-binrpc/v3 v3.1.0/go.mod h1:6bXSjcAoRRGHfwur58BkJCs8xcQb3C7UFeVySvyFL9I=
 github.com/franela/goblin v0.0.0-20200105215937-c9ffbefa60db/go.mod h1:7dvUGVsVBjqR7JHJk0brhHOZYGmfBYOrK0ZhYMEtBr4=
 github.com/franela/goreq v0.0.0-20171204163338-bcd34c9993f8/go.mod h1:ZhphrRTfi2rbfLwlschooIH4+wKKDR4Pdxhh+TRoA20=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
