@@ -1,9 +1,12 @@
 # Kamailio Exporter for Prometheus
 [![Go Report Card](https://goreportcard.com/badge/github.com/florentchauveau/kamailio_exporter)](https://goreportcard.com/report/github.com/florentchauveau/kamailio_exporter)
-[![CircleCI](https://circleci.com/gh/florentchauveau/kamailio_exporter.svg?style=shield)](https://circleci.com/gh/florentchauveau/kamailio_exporter)
+![CI](https://github.com/florentchauveau/kamailio_exporter/actions/workflows/build.yml/badge.svg)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/florentchauveau/kamailio_exporter/blob/master/LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/github.com/florentchauveau/kamailio_exporter.svg)](https://pkg.go.dev/github.com/florentchauveau/kamailio_exporter)
 
 A [Kamailio](https://www.kamailio.org/) exporter for Prometheus.
+
+Safe to use in production. It has been used in production for years at [Callr](https://www.callr.com).
 
 It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/modules/stable/modules/ctl.html) via the `ctl` module. 
 
@@ -12,6 +15,8 @@ BINRPC is implemented in library https://github.com/florentchauveau/go-kamailio-
 ## Getting Started
 
 Pre-built binaries are available in [releases](https://github.com/florentchauveau/kamailio_exporter/releases).
+
+Docker images are also available on [DockerHub](https://hub.docker.com/r/florentchauveau/kamailio_exporter).
 
 To run it:
 ```bash
@@ -167,7 +172,7 @@ With go1.11+, clone the project and:
 go build
 ```
 
-Dependencies will be fetch automatically.
+Dependencies will be fetched automatically.
 
 ## Contributing
 
