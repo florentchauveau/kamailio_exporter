@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 
 	binrpc "github.com/florentchauveau/go-kamailio-binrpc/v3"
 	"github.com/prometheus/client_golang/prometheus"
@@ -229,7 +228,7 @@ func NewCollector(uri string, timeout time.Duration, methods string) (*Collector
 	var err error
 
 	if url, err = url.Parse(c.URI); err != nil {
-		return nil, errors.Wrap(err, "cannot parse URI")
+		return nil, fmt.Errorf("cannot parse URI: %w", err)
 	}
 
 	c.url = url
@@ -247,7 +246,7 @@ func NewCollector(uri string, timeout time.Duration, methods string) (*Collector
 		}
 
 		if !found {
-			return nil, errors.Errorf(
+			return nil, fmt.Errorf(
 				`invalid method "%s". available methods are: %s.`,
 				method,
 				strings.Join(availableMethods, ","),
