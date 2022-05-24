@@ -13,12 +13,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Generate build files
-        uses: thatisuday/go-cross-build@v1.1.0
+      - name: Setup Go
+        uses: actions/setup-go@v3
         with:
-          platforms: linux/amd64,linux/arm64
-          name: kamailio_exporter
-          dest: dist
+          go-version: ">=1.18"
+
+      - name: Create directory
+        run: mkdir dist
+
+      - name: Build linux/amd64
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/kamailio_exporter-linux-amd64
+
+      - name: Build linux/arm64
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/kamailio_exporter-linux-arm64
 
       - name: Upload build artifacts
         uses: skx/github-action-publish-binaries@master
