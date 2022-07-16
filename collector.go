@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/syslog"
 	"net"
 	"net/url"
 	"regexp"
@@ -123,6 +124,12 @@ type DispatcherTarget struct {
 	SetID int
 }
 
+// DMQNode is a peer for the dmq module
+type DMQNode struct {
+	Host   string
+	Status string
+}
+
 const (
 	namespace = "kamailio"
 )
@@ -142,6 +149,7 @@ var (
 		"dispatcher.list",
 		"tls.info",
 		"dlg.stats_active",
+		"dmq.list_nodes",
 	}
 
 	metricsList = map[string][]Metric{
@@ -193,6 +201,9 @@ var (
 			NewMetricGauge("answering", "Dialogs answering.", "dlg.stats_active"),
 			NewMetricGauge("ongoing", "Dialogs ongoing.", "dlg.stats_active"),
 			NewMetricGauge("all", "Dialogs all.", "dlg.stats_active"),
+		},
+		"dmq.list_nodes": {
+			NewMetricGauge("dmq", "DMQ peer Status", "dmq.list_nodes"),
 		},
 	}
 )
@@ -392,24 +403,22 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 
 // scrapeMethod will return metrics for one method.
 func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error) {
-	records, err := c.fetchBINRPC(method)
-
+	records, err := c.fetchBINRPC(method) // returns []binrpc.Record
 	if err != nil {
 		return nil, err
 	}
-
-	// we expect just 1 record of type map
 	if len(records) == 2 && records[0].Type == binrpc.TypeInt && records[0].Value.(int) == 500 {
 		return nil, fmt.Errorf(`invalid response for method "%s": [500] %s`, method, records[1].Value.(string))
+	}
+  if method =="dmq.list_nodes" {
+	// This will contain multiple elements.
 	} else if len(records) != 1 {
-		return nil, fmt.Errorf(`invalid response for method "%s", expected %d record, got %d`,
-			method, 1, len(records),
+			return nil, fmt.Errorf(`invalid response for method "%s", expected %d record, got %d`,
+		  method, 1, len(records),
 		)
 	}
-
 	// all methods implemented in this exporter return a struct
 	items, err := records[0].StructItems()
-
 	if err != nil {
 		return nil, err
 	}
@@ -422,7 +431,6 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	case "tm.stats":
 		for _, item := range items {
 			i, _ := item.Value.Int()
-
 			if codeRegex.MatchString(item.Key) {
 				// this item is a "code" statistic, eg "200" or "6xx"
 				metrics["codes"] = append(metrics["codes"],
@@ -445,6 +453,24 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 		fallthrough
 	case "dlg.stats_active":
 		fallthrough
+	case "dmq.list_nodes":
+		nodes, err := parseDMQNodes(records)
+		if err != nil {
+			return nil, err
+		}
+		if len(nodes) == 0 {
+			break
+		}
+		for _, node := range nodes {
+			mv := MetricValue{
+				Value: 1,
+				Labels: map[string]string{
+					"host":   node.Host,
+					"status": node.Status,
+				},
+			}
+			metrics["dmq"] = append(metrics["dmq"], mv)
+		}
 	case "core.uptime":
 		for _, item := range items {
 			i, _ := item.Value.Int()
@@ -564,6 +590,29 @@ func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, erro
 	return result, nil
 }
 
+
+// parseDMQNodes parses the "dmq.list_nodes" result and returns a list of nodes
+func parseDMQNodes(records []binrpc.Record) ([]DMQNode, error) {
+	var result []DMQNode
+	for _, record := range records{
+		  items, err := record.StructItems()
+			node := DMQNode{}
+			for _, item := range items {
+			  switch item.Key {
+			 	case "host":
+					node.Host, _ = item.Value.String()
+				case "status":
+          node.Status, _ = item.Value.String()
+					}
+			}
+			if err != nil {
+				return nil, err
+			}
+      result = append(result,node)
+	}
+	return result, nil
+}
+
 // fetchBINRPC talks to kamailio using the BINRPC protocol.
 func (c *Collector) fetchBINRPC(method string) ([]binrpc.Record, error) {
 	// WritePacket returns the cookie generated
@@ -575,7 +624,8 @@ func (c *Collector) fetchBINRPC(method string) ([]binrpc.Record, error) {
 
 	// the cookie is passed again for verification
 	// we receive records in response
-	records, err := binrpc.ReadPacket(c.conn, cookie)
+
+  records, err := binrpc.ReadPacket(c.conn, cookie)
 
 	if err != nil {
 		return nil, err
