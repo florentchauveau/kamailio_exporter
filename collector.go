@@ -337,7 +337,7 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 
 	var err error
 
-	address := c.url.Host
+	address := c.url.Opaque
 	if c.url.Scheme == "unix" {
 		address = c.url.Path
 	}
