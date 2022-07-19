@@ -142,12 +142,12 @@ List of exposed metrics:
 # TYPE kamailio_core_tcp_info_max_connections gauge
 # HELP kamailio_core_tcp_info_max_tls_connections Maximum TLS connections.
 # TYPE kamailio_core_tcp_info_max_tls_connections gauge
-# HELP kamailio_core_tcp_info_max_opened_connections Opened TCP connections.
-# TYPE kamailio_core_tcp_info_max_opened_connections gauge
-# HELP kamailio_core_tcp_info_max_opened_tls_connections Opened TLS connections.
-# TYPE kamailio_core_tcp_info_max_opened_tls_connections gauge
-# HELP kamailio_core_tcp_info_max_write_queued_bytes Write queued bytes.
-# TYPE kamailio_core_tcp_info_max_write_queued_bytes gauge
+# HELP kamailio_core_tcp_info_opened_connections Opened TCP connections.
+# TYPE kamailio_core_tcp_info_opened_connections gauge
+# HELP kamailio_core_tcp_info_opened_tls_connections Opened TLS connections.
+# TYPE kamailio_core_tcp_info_opened_tls_connections gauge
+# HELP kamailio_core_tcp_info_write_queued_bytes Write queued bytes.
+# TYPE kamailio_core_tcp_info_write_queued_bytes gauge
 # HELP kamailio_tls_info_opened_connections Number of opened tls connections.
 # TYPE kamailio_tls_info_opened_connections gauge
 # HELP kamailio_tls_info_max_connections Number of max tls connections.
