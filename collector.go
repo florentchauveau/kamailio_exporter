@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/url"
 	"regexp"
@@ -95,7 +95,6 @@ type Collector struct {
 
 	url   *url.URL
 	mutex sync.Mutex
-	conn  net.Conn
 
 	up            prometheus.Gauge
 	failedScrapes prometheus.Counter
@@ -198,7 +197,7 @@ var (
 )
 
 // NewMetricGauge is a helper function to create a gauge.
-func NewMetricGauge(name string, help string, method string, labels ...string) Metric {
+func NewMetricGauge(name string, help string, method string) Metric {
 	return Metric{
 		prometheus.GaugeValue,
 		name,
@@ -208,7 +207,7 @@ func NewMetricGauge(name string, help string, method string, labels ...string) M
 }
 
 // NewMetricCounter is a helper function to create a counter.
-func NewMetricCounter(name string, help string, method string, labels ...string) Metric {
+func NewMetricCounter(name string, help string, method string) Metric {
 	return Metric{
 		prometheus.CounterValue,
 		name,
@@ -281,8 +280,9 @@ func NewCollector(uri string, timeout time.Duration, methods string) (*Collector
 // "meth.od" is transformed into "meth_od"
 //
 // examples: "kamailio_tm_stats_current"
-//           "kamailio_tm_stats_created_total"
-//           "kamailio_sl_stats_200_total"
+//
+//	"kamailio_tm_stats_created_total"
+//	"kamailio_sl_stats_200_total"
 func (m *Metric) ExportedName() string {
 	suffix := m.Name
 
@@ -331,33 +331,33 @@ func (m *MetricValue) LabelValues() []string {
 	return list
 }
 
-// scrape will connect to the kamailio instance if needed, and push metrics to the Prometheus channel.
+// scrape will connect to the kamailio instance, and push metrics to the Prometheus channel.
 func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 	c.totalScrapes.Inc()
-
-	var err error
 
 	address := c.url.Host
 	if c.url.Scheme == "unix" {
 		address = c.url.Path
 	}
 
-	c.conn, err = net.DialTimeout(c.url.Scheme, address, c.Timeout)
+	conn, err := net.DialTimeout(c.url.Scheme, address, c.Timeout)
 
 	if err != nil {
 		return err
 	}
 
-	c.conn.SetDeadline(time.Now().Add(c.Timeout))
+	defer conn.Close()
 
-	defer c.conn.Close()
+	if err = conn.SetDeadline(time.Now().Add(c.Timeout)); err != nil {
+		return err
+	}
 
 	for _, method := range c.Methods {
 		if _, found := metricsList[method]; !found {
 			panic("invalid method requested")
 		}
 
-		metricsScraped, err := c.scrapeMethod(method)
+		metricsScraped, err := c.scrapeMethod(conn, method)
 
 		if err != nil {
 			return err
@@ -391,8 +391,8 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 }
 
 // scrapeMethod will return metrics for one method.
-func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error) {
-	records, err := c.fetchBINRPC(method)
+func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]MetricValue, error) {
+	records, err := fetchBINRPC(conn, method)
 
 	if err != nil {
 		return nil, err
@@ -565,9 +565,9 @@ func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, erro
 }
 
 // fetchBINRPC talks to kamailio using the BINRPC protocol.
-func (c *Collector) fetchBINRPC(method string) ([]binrpc.Record, error) {
+func fetchBINRPC(conn net.Conn, method string) ([]binrpc.Record, error) {
 	// WritePacket returns the cookie generated
-	cookie, err := binrpc.WritePacket(c.conn, method)
+	cookie, err := binrpc.WritePacket(conn, method)
 
 	if err != nil {
 		return nil, err
@@ -575,7 +575,7 @@ func (c *Collector) fetchBINRPC(method string) ([]binrpc.Record, error) {
 
 	// the cookie is passed again for verification
 	// we receive records in response
-	records, err := binrpc.ReadPacket(c.conn, cookie)
+	records, err := binrpc.ReadPacket(conn, cookie)
 
 	if err != nil {
 		return nil, err
@@ -599,7 +599,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		c.failedScrapes.Inc()
 		c.up.Set(0)
-		log.Println("[error]", err)
+		slog.Error("scrape failed", "error", err)
 	} else {
 		c.up.Set(1)
 	}

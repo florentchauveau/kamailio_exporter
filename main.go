@@ -1,14 +1,18 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
+
+// version is set at build time by goreleaser.
+var version = "dev"
 
 func main() {
 	var (
@@ -19,12 +23,14 @@ func main() {
 		timeout       = kingpin.Flag("kamailio.timeout", "Timeout for trying to get stats from kamailio.").Short('t').Default("5s").Duration()
 	)
 
+	kingpin.Version(version)
 	kingpin.Parse()
 
 	c, err := NewCollector(*scrapeURI, *timeout, *methods)
 
 	if err != nil {
-		panic(err)
+		slog.Error("cannot create collector", "error", err)
+		os.Exit(1)
 	}
 
 	prometheus.MustRegister(c)
@@ -39,5 +45,10 @@ func main() {
 			</body>
 			</html>`))
 	})
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+	slog.Info("listening", "address", *listenAddress)
+
+	if err := http.ListenAndServe(*listenAddress, nil); err != nil {
+		slog.Error("http server failed", "error", err)
+		os.Exit(1)
+	}
 }

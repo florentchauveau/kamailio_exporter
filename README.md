@@ -1,6 +1,6 @@
 # Kamailio Exporter for Prometheus
 [![Go Report Card](https://goreportcard.com/badge/github.com/florentchauveau/kamailio_exporter)](https://goreportcard.com/report/github.com/florentchauveau/kamailio_exporter)
-![CI](https://github.com/florentchauveau/kamailio_exporter/actions/workflows/build.yml/badge.svg)
+![CI](https://github.com/florentchauveau/kamailio_exporter/actions/workflows/ci.yml/badge.svg)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/florentchauveau/kamailio_exporter/blob/master/LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/florentchauveau/kamailio_exporter.svg)](https://pkg.go.dev/github.com/florentchauveau/kamailio_exporter)
 
@@ -166,7 +166,7 @@ List of exposed metrics:
 
 ## Compiling
 
-With go1.18+, clone the project and:
+With go1.25+, clone the project and:
 
 ```bash
 go build

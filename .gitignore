@@ -6,6 +6,9 @@
 *.dylib
 /kamailio_exporter
 
+# goreleaser output
+/dist/
+
 # Test binary, build with `go test -c`
 *.test
 

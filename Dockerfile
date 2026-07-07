@@ -1,9 +1,11 @@
 # build
-FROM golang:1.18 as builder
+FROM golang:1.25 AS builder
 
 WORKDIR /go/src
+COPY go.mod go.sum /go/src/
+RUN go mod download
 COPY . /go/src/
-RUN CGO_ENABLED=0 go build -a -o kamailio_exporter
+RUN CGO_ENABLED=0 go build -o kamailio_exporter
 
 # run
 FROM scratch
