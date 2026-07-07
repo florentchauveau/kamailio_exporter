@@ -419,38 +419,37 @@ func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]Met
 	metrics := make(map[string][]MetricValue)
 
 	switch method {
-	case "sl.stats":
-		fallthrough
-	case "tm.stats":
+	case "sl.stats", "tm.stats":
 		for _, item := range items {
-			i, _ := item.Value.Int()
+			value, err := c.scanValue(method, item)
+
+			if err != nil {
+				continue
+			}
 
 			if codeRegex.MatchString(item.Key) {
 				// this item is a "code" statistic, eg "200" or "6xx"
 				metrics["codes"] = append(metrics["codes"],
 					MetricValue{
-						Value: float64(i),
+						Value: value,
 						Labels: map[string]string{
 							"code": item.Key,
 						},
 					},
 				)
 			} else {
-				metrics[item.Key] = []MetricValue{{Value: float64(i)}}
+				metrics[item.Key] = []MetricValue{{Value: value}}
 			}
 		}
-	case "tls.info":
-		fallthrough
-	case "core.shmmem":
-		fallthrough
-	case "core.tcp_info":
-		fallthrough
-	case "dlg.stats_active":
-		fallthrough
-	case "core.uptime":
+	case "tls.info", "core.shmmem", "core.tcp_info", "dlg.stats_active", "core.uptime":
 		for _, item := range items {
-			i, _ := item.Value.Int()
-			metrics[item.Key] = []MetricValue{{Value: float64(i)}}
+			value, err := c.scanValue(method, item)
+
+			if err != nil {
+				continue
+			}
+
+			metrics[item.Key] = []MetricValue{{Value: value}}
 		}
 	case "dispatcher.list":
 		targets, err := parseDispatcherTargets(items)
@@ -478,6 +477,20 @@ func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]Met
 	}
 
 	return metrics, nil
+}
+
+// scanValue converts a struct item value to float64, and logs values
+// that cannot be converted. Depending on the Kamailio version, values are
+// returned as ints or doubles (e.g. core.shmmem, see issue #30).
+func (c *Collector) scanValue(method string, item binrpc.StructItem) (float64, error) {
+	var value float64
+
+	if err := item.Value.Scan(&value); err != nil {
+		c.logger.Error("cannot parse value", "method", method, "key", item.Key, "error", err)
+		return 0, err
+	}
+
+	return value, nil
 }
 
 // parseDispatcherTargets parses the "dispatcher.list" result and returns a list of targets.

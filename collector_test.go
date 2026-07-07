@@ -220,6 +220,67 @@ func TestCollectorScrapeUnixSocket(t *testing.T) {
 	}
 }
 
+func TestCollectorScrapeShmmemDoubles(t *testing.T) {
+	// depending on the Kamailio version, core.shmmem values are returned
+	// as ints or doubles (issue #30); both must be handled
+	payload := encodeStructPayload(t, []kv{
+		{"total", 67108864.0},
+		{"free", 61189608.0},
+		{"used", 2590984.5},
+		{"real_used", 5919256.0},
+		{"max_used", 13323296.0},
+		{"fragments", 44546}, // int, like older Kamailio versions
+	})
+
+	address := startFakeKamailio(t, "tcp", "127.0.0.1:0", map[string][]byte{
+		"core.shmmem": payload,
+	})
+
+	c, err := NewCollector("tcp://"+address, time.Second, "core.shmmem", promslog.NewNopLogger())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `
+		# HELP kamailio_core_shmmem_fragments Number of fragments in shared memory.
+		# TYPE kamailio_core_shmmem_fragments gauge
+		kamailio_core_shmmem_fragments 44546
+		# HELP kamailio_core_shmmem_free Free shared memory.
+		# TYPE kamailio_core_shmmem_free gauge
+		kamailio_core_shmmem_free 61189608
+		# HELP kamailio_core_shmmem_max_used Max used shared memory.
+		# TYPE kamailio_core_shmmem_max_used gauge
+		kamailio_core_shmmem_max_used 13323296
+		# HELP kamailio_core_shmmem_real_used Real used shared memory.
+		# TYPE kamailio_core_shmmem_real_used gauge
+		kamailio_core_shmmem_real_used 5919256
+		# HELP kamailio_core_shmmem_total Total shared memory.
+		# TYPE kamailio_core_shmmem_total gauge
+		kamailio_core_shmmem_total 67108864
+		# HELP kamailio_core_shmmem_used Used shared memory.
+		# TYPE kamailio_core_shmmem_used gauge
+		kamailio_core_shmmem_used 2590984.5
+		# HELP kamailio_up Was the last scrape successful.
+		# TYPE kamailio_up gauge
+		kamailio_up 1
+	`
+
+	err = testutil.CollectAndCompare(c, strings.NewReader(expected),
+		"kamailio_core_shmmem_fragments",
+		"kamailio_core_shmmem_free",
+		"kamailio_core_shmmem_max_used",
+		"kamailio_core_shmmem_real_used",
+		"kamailio_core_shmmem_total",
+		"kamailio_core_shmmem_used",
+		"kamailio_up",
+	)
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestCollectorScrapeErrorResponse(t *testing.T) {
 	// a BINRPC error response: an int code and a string message
 	var payload bytes.Buffer
@@ -347,6 +408,65 @@ func serveBINRPC(conn net.Conn, payloads map[string][]byte) {
 	}
 }
 
+// kv is a key/value pair for encodeStructPayload.
+type kv struct {
+	key   string
+	value any
+}
+
+// encodeStructPayload encodes key/value pairs as a single BINRPC struct
+// record, as Kamailio would return it. Values must be int or float64.
+// Values are encoded by hand because binrpc.Record.Encode truncates
+// values larger than 32 bits (the read path handles them fine).
+func encodeStructPayload(t *testing.T, items []kv) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	buf.WriteByte(0x03) // struct start
+
+	for _, item := range items {
+		// the AVP name record has the same layout as a string record,
+		// with type 5 (AVP) instead of 1 (string)
+		size := len(item.key) + 1 // trailing NUL
+
+		if size < 8 {
+			buf.WriteByte(byte(size<<4 | 0x05))
+		} else {
+			buf.WriteByte(0x95) // flag set, 1 length byte, type AVP
+			buf.WriteByte(byte(size))
+		}
+
+		buf.WriteString(item.key)
+		buf.WriteByte(0x00)
+
+		var kind byte
+		var value []byte
+
+		switch v := item.value.(type) {
+		case int:
+			kind = 0x00 // int
+			value = minBigEndian(v)
+		case float64:
+			kind = 0x02 // double, fixed-point with 3 decimals
+			value = minBigEndian(int(v * 1000))
+		default:
+			t.Fatalf("unsupported value type %T", item.value)
+		}
+
+		if len(value) >= 8 {
+			t.Fatalf("value too large to encode: %v", item.value)
+		}
+
+		buf.WriteByte(byte(len(value))<<4 | kind)
+		buf.Write(value)
+	}
+
+	buf.WriteByte(0x83) // end of struct
+
+	return buf.Bytes()
+}
+
 // writeRawPacket writes a BINRPC packet with the given cookie and payload.
 // The binrpc package cannot encode struct records, so tests provide raw
 // payload bytes (see tmStatsPayload).
@@ -370,7 +490,10 @@ func writeRawPacket(w io.Writer, cookie uint32, payload []byte) error {
 // minBigEndian returns the big-endian representation of n,
 // without leading zero bytes.
 func minBigEndian(n int) []byte {
-	b := []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
+	b := []byte{
+		byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
+		byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
+	}
 
 	for len(b) > 1 && b[0] == 0 {
 		b = b[1:]
