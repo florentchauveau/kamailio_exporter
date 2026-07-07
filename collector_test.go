@@ -14,6 +14,7 @@ import (
 	binrpc "github.com/florentchauveau/go-kamailio-binrpc/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/common/promslog"
 )
 
 // tmStatsPayload is a real "tm.stats" BINRPC response payload (a single
@@ -73,7 +74,7 @@ func TestMetricValueLabels(t *testing.T) {
 }
 
 func TestNewCollector(t *testing.T) {
-	c, err := NewCollector("tcp://localhost:2049", time.Second, "tm.stats,sl.stats")
+	c, err := NewCollector("tcp://localhost:2049", time.Second, "tm.stats,sl.stats", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -83,11 +84,11 @@ func TestNewCollector(t *testing.T) {
 		t.Errorf("unexpected methods: %v", c.Methods)
 	}
 
-	if _, err = NewCollector("tcp://localhost:2049", time.Second, "invalid.method"); err == nil {
+	if _, err = NewCollector("tcp://localhost:2049", time.Second, "invalid.method", promslog.NewNopLogger()); err == nil {
 		t.Error("expected an error for an invalid method")
 	}
 
-	if _, err = NewCollector("://invalid", time.Second, "tm.stats"); err == nil {
+	if _, err = NewCollector("://invalid", time.Second, "tm.stats", promslog.NewNopLogger()); err == nil {
 		t.Error("expected an error for an invalid URI")
 	}
 }
@@ -157,7 +158,7 @@ func TestCollectorScrapeTCP(t *testing.T) {
 		"tm.stats": payload,
 	})
 
-	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats")
+	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +203,7 @@ func TestCollectorScrapeUnixSocket(t *testing.T) {
 		"tm.stats": payload,
 	})
 
-	c, err := NewCollector("unix:"+socket, time.Second, "tm.stats")
+	c, err := NewCollector("unix:"+socket, time.Second, "tm.stats", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +238,7 @@ func TestCollectorScrapeErrorResponse(t *testing.T) {
 		"tm.stats": payload.Bytes(),
 	})
 
-	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats")
+	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -257,7 +258,7 @@ func TestCollectorScrapeConnectionRefused(t *testing.T) {
 	address := listener.Addr().String()
 	listener.Close()
 
-	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats")
+	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)

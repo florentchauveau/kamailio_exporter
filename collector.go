@@ -93,8 +93,9 @@ type Collector struct {
 	Timeout time.Duration
 	Methods []string
 
-	url   *url.URL
-	mutex sync.Mutex
+	url    *url.URL
+	mutex  sync.Mutex
+	logger *slog.Logger
 
 	up            prometheus.Gauge
 	failedScrapes prometheus.Counter
@@ -217,11 +218,12 @@ func NewMetricCounter(name string, help string, method string) Metric {
 }
 
 // NewCollector processes uri, timeout and methods and returns a new Collector.
-func NewCollector(uri string, timeout time.Duration, methods string) (*Collector, error) {
+func NewCollector(uri string, timeout time.Duration, methods string, logger *slog.Logger) (*Collector, error) {
 	c := Collector{}
 
 	c.URI = uri
 	c.Timeout = timeout
+	c.logger = logger
 
 	var url *url.URL
 	var err error
@@ -599,7 +601,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		c.failedScrapes.Inc()
 		c.up.Set(0)
-		slog.Error("scrape failed", "error", err)
+		c.logger.Error("scrape failed", "error", err)
 	} else {
 		c.up.Set(1)
 	}
