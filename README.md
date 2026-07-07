@@ -1,4 +1,5 @@
 # Kamailio Exporter for Prometheus
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/florentchauveau/kamailio_exporter)](https://goreportcard.com/report/github.com/florentchauveau/kamailio_exporter)
 ![CI](https://github.com/florentchauveau/kamailio_exporter/actions/workflows/ci.yml/badge.svg)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/florentchauveau/kamailio_exporter/blob/master/LICENSE)
@@ -8,7 +9,7 @@ A [Kamailio](https://www.kamailio.org/) exporter for Prometheus.
 
 Safe to use in production. It has been used in production for years at [Callr](https://www.callr.com).
 
-It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/modules/stable/modules/ctl.html) via the `ctl` module. 
+It communicates with Kamailio using native [BINRPC](http://kamailio.org/docs/modules/stable/modules/ctl.html) via the `ctl` module.
 
 BINRPC is implemented in library https://github.com/florentchauveau/go-kamailio-binrpc.
 
@@ -19,11 +20,13 @@ Pre-built binaries are available in [releases](https://github.com/florentchauvea
 Docker images are also available on [DockerHub](https://hub.docker.com/r/florentchauveau/kamailio_exporter).
 
 To run it:
+
 ```bash
 ./kamailio_exporter [flags]
 ```
 
 Help on flags:
+
 ```
 ./kamailio_exporter --help
 
@@ -39,7 +42,7 @@ Flags:
   -m, --kamailio.methods="tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info"
                                  Comma-separated list of methods to call.
                                  E.g. "tm.stats,sl.stats". Implemented:
-                                 tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info,dispatcher.list,tls.info,dlg.stats_active
+                                 tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info,dispatcher.list,tls.info,dlg.stats_active,dmq.list_nodes,stats.fetch
   -t, --kamailio.timeout=5s      Timeout for trying to get stats from kamailio.
       --kamailio.stats-groups="script"
                                  Comma-separated list of statistics groups to
@@ -107,6 +110,7 @@ By default (if no parameters are changed in the config file), the `ctl` module e
 ## Metrics
 
 ### Default metrics
+
 By default, the exporter will try to fetch values from the following commands:
 
 - `tm.stats` (requires the [TM](http://kamailio.org/docs/modules/stable/modules/tm.html) module)
@@ -115,16 +119,21 @@ By default, the exporter will try to fetch values from the following commands:
 - `core.uptime`
 
 ### Module specific metrics
+
 #### Dispatcher
+
 If you are using the [DISPATCHER](http://kamailio.org/docs/modules/stable/modules/dispatcher.html) module, you can enable `dispatcher.list`.
 
 #### TLS
-For [TLS]( https://kamailio.org/docs/modules/stable/modules/tls.html ) you can enable `tls.info`.
+
+For [TLS](https://kamailio.org/docs/modules/stable/modules/tls.html) you can enable `tls.info`.
 
 #### Dialog
+
 For [DIALOG](http://kamailio.org/docs/modules/stable/modules/dialog.html) module, you can enable `dlg.stats_active`.
 
 #### DMQ
+
 If you are using the [DMQ](https://kamailio.org/docs/modules/stable/modules/dmq.html) module, you can enable `dmq.list_nodes` to export the status of DMQ nodes:
 
 ```
@@ -157,6 +166,7 @@ The groups to fetch are controlled with `--kamailio.stats-groups` (default
 as well as `all`, and full statistic names (e.g. `script:destination_down`).
 
 ### Example for using non-default metrics
+
 ```bash
 ./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info,dlg.stats_active"
 ```
@@ -246,7 +256,7 @@ List of exposed metrics:
 
 ## Compiling
 
-With go1.25+, clone the project and:
+With go1.26+, clone the project and:
 
 ```bash
 go build
