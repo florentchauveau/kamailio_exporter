@@ -518,8 +518,7 @@ type kv struct {
 
 // encodeStructPayload encodes key/value pairs as a single BINRPC struct
 // record, as Kamailio would return it. Values must be int, float64,
-// or string. Values are encoded by hand because binrpc.Record.Encode
-// truncates values larger than 32 bits (the read path handles them fine).
+// or string.
 func encodeStructPayload(t *testing.T, items []kv) []byte {
 	t.Helper()
 
@@ -532,16 +531,26 @@ func encodeStructPayload(t *testing.T, items []kv) []byte {
 		// with type 5 (AVP) instead of 1 (string)
 		encodeRawRecord(&buf, 0x05, append([]byte(item.key), 0x00))
 
+		var record *binrpc.Record
+		var err error
+
 		switch v := item.value.(type) {
 		case int:
-			encodeRawRecord(&buf, 0x00, minBigEndian(v))
+			record, err = binrpc.CreateRecord(v)
 		case float64:
-			// doubles are fixed-point with 3 decimals
-			encodeRawRecord(&buf, 0x02, minBigEndian(int(v*1000)))
+			record, err = binrpc.CreateRecord(v)
 		case string:
-			encodeRawRecord(&buf, 0x01, append([]byte(v), 0x00))
+			record, err = binrpc.CreateRecord(v)
 		default:
 			t.Fatalf("unsupported value type %T", item.value)
+		}
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = record.Encode(&buf); err != nil {
+			t.Fatal(err)
 		}
 	}
 
