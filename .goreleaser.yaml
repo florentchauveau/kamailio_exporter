@@ -20,6 +20,11 @@ archives:
 checksum:
   name_template: checksums.txt
 
+release:
+  # mark releases with a semver pre-release suffix (e.g. v1.0.2-rc1)
+  # as pre-releases on GitHub
+  prerelease: auto
+
 changelog:
   sort: asc
   filters:

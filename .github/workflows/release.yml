@@ -1,8 +1,11 @@
 name: Release
 
+# runs when a release is published (from the GitHub UI or `gh release create`).
+# goreleaser then attaches the binaries to the existing release,
+# keeping its notes and pre-release flag.
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
 
 jobs:
   goreleaser:
