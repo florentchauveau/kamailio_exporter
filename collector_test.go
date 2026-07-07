@@ -7,6 +7,7 @@ import (
 	"net"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -328,6 +329,60 @@ func TestCollectorScrapeShmmemDoubles(t *testing.T) {
 	}
 }
 
+func TestCollectorScrapeDMQNodes(t *testing.T) {
+	// "dmq.list_nodes" returns one struct record per node
+	node1 := encodeStructPayload(t, []kv{
+		{"host", "10.0.0.1"},
+		{"port", "5060"},
+		{"proto", "udp"},
+		{"resolved_ip", "10.0.0.1"},
+		{"status", "active"},
+		{"last_notification", 0},
+		{"local", 1},
+		{"fail_count", 0},
+	})
+
+	node2 := encodeStructPayload(t, []kv{
+		{"host", "10.0.0.2"},
+		{"port", "5090"},
+		{"proto", "udp"},
+		{"resolved_ip", "10.0.0.2"},
+		{"status", "pending"},
+		{"last_notification", 0},
+		{"local", 0},
+		{"fail_count", 2},
+	})
+
+	address := startFakeKamailio(t, "tcp", "127.0.0.1:0", map[string][]byte{
+		"dmq.list_nodes": slices.Concat(node1, node2),
+	})
+
+	c, err := NewCollector("tcp://"+address, time.Second, "dmq.list_nodes", promslog.NewNopLogger())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `
+		# HELP kamailio_dmq_list_nodes_node DMQ node status.
+		# TYPE kamailio_dmq_list_nodes_node gauge
+		kamailio_dmq_list_nodes_node{host="10.0.0.1",local="1",port="5060",status="active"} 1
+		kamailio_dmq_list_nodes_node{host="10.0.0.2",local="0",port="5090",status="pending"} 1
+		# HELP kamailio_up Was the last scrape successful.
+		# TYPE kamailio_up gauge
+		kamailio_up 1
+	`
+
+	err = testutil.CollectAndCompare(c, strings.NewReader(expected),
+		"kamailio_dmq_list_nodes_node",
+		"kamailio_up",
+	)
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestCollectorScrapeErrorResponse(t *testing.T) {
 	// a BINRPC error response: an int code and a string message
 	var payload bytes.Buffer
@@ -462,9 +517,9 @@ type kv struct {
 }
 
 // encodeStructPayload encodes key/value pairs as a single BINRPC struct
-// record, as Kamailio would return it. Values must be int or float64.
-// Values are encoded by hand because binrpc.Record.Encode truncates
-// values larger than 32 bits (the read path handles them fine).
+// record, as Kamailio would return it. Values must be int, float64,
+// or string. Values are encoded by hand because binrpc.Record.Encode
+// truncates values larger than 32 bits (the read path handles them fine).
 func encodeStructPayload(t *testing.T, items []kv) []byte {
 	t.Helper()
 
@@ -475,43 +530,38 @@ func encodeStructPayload(t *testing.T, items []kv) []byte {
 	for _, item := range items {
 		// the AVP name record has the same layout as a string record,
 		// with type 5 (AVP) instead of 1 (string)
-		size := len(item.key) + 1 // trailing NUL
-
-		if size < 8 {
-			buf.WriteByte(byte(size<<4 | 0x05))
-		} else {
-			buf.WriteByte(0x95) // flag set, 1 length byte, type AVP
-			buf.WriteByte(byte(size))
-		}
-
-		buf.WriteString(item.key)
-		buf.WriteByte(0x00)
-
-		var kind byte
-		var value []byte
+		encodeRawRecord(&buf, 0x05, append([]byte(item.key), 0x00))
 
 		switch v := item.value.(type) {
 		case int:
-			kind = 0x00 // int
-			value = minBigEndian(v)
+			encodeRawRecord(&buf, 0x00, minBigEndian(v))
 		case float64:
-			kind = 0x02 // double, fixed-point with 3 decimals
-			value = minBigEndian(int(v * 1000))
+			// doubles are fixed-point with 3 decimals
+			encodeRawRecord(&buf, 0x02, minBigEndian(int(v*1000)))
+		case string:
+			encodeRawRecord(&buf, 0x01, append([]byte(v), 0x00))
 		default:
 			t.Fatalf("unsupported value type %T", item.value)
 		}
-
-		if len(value) >= 8 {
-			t.Fatalf("value too large to encode: %v", item.value)
-		}
-
-		buf.WriteByte(byte(len(value))<<4 | kind)
-		buf.Write(value)
 	}
 
 	buf.WriteByte(0x83) // end of struct
 
 	return buf.Bytes()
+}
+
+// encodeRawRecord encodes a BINRPC record of the given type from raw
+// value bytes.
+func encodeRawRecord(buf *bytes.Buffer, kind byte, value []byte) {
+	if len(value) < 8 {
+		buf.WriteByte(byte(len(value))<<4 | kind)
+	} else {
+		// flag set: the size field contains the length of the size
+		buf.WriteByte(0x80 | 1<<4 | kind)
+		buf.WriteByte(byte(len(value)))
+	}
+
+	buf.Write(value)
 }
 
 // writeRawPacket writes a BINRPC packet with the given cookie and payload.

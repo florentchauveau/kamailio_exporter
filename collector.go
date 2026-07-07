@@ -124,6 +124,14 @@ type DispatcherTarget struct {
 	SetID int
 }
 
+// DMQNode is a node of the dmq module.
+type DMQNode struct {
+	Host   string
+	Port   string
+	Status string
+	Local  string
+}
+
 const (
 	namespace = "kamailio"
 )
@@ -143,6 +151,7 @@ var (
 		"dispatcher.list",
 		"tls.info",
 		"dlg.stats_active",
+		"dmq.list_nodes",
 	}
 
 	metricsList = map[string][]Metric{
@@ -194,6 +203,9 @@ var (
 			NewMetricGauge("answering", "Dialogs answering.", "dlg.stats_active"),
 			NewMetricGauge("ongoing", "Dialogs ongoing.", "dlg.stats_active"),
 			NewMetricGauge("all", "Dialogs all.", "dlg.stats_active"),
+		},
+		"dmq.list_nodes": {
+			NewMetricGauge("node", "DMQ node status.", "dmq.list_nodes"),
 		},
 	}
 )
@@ -412,10 +424,18 @@ func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]Met
 		return nil, err
 	}
 
-	// we expect just 1 record of type map
 	if len(records) == 2 && records[0].Type == binrpc.TypeInt && records[0].Value.(int) == 500 {
 		return nil, fmt.Errorf(`invalid response for method "%s": [500] %s`, method, records[1].Value.(string))
-	} else if len(records) != 1 {
+	}
+
+	// "dmq.list_nodes" returns one struct record per node,
+	// unlike the other methods that return a single struct record
+	if method == "dmq.list_nodes" {
+		return scrapeDMQNodes(records)
+	}
+
+	// we expect just 1 record of type map
+	if len(records) != 1 {
 		return nil, fmt.Errorf(`invalid response for method "%s", expected %d record, got %d`,
 			method, 1, len(records),
 		)
@@ -486,6 +506,53 @@ func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]Met
 
 			metrics["target"] = append(metrics["target"], mv)
 		}
+	}
+
+	return metrics, nil
+}
+
+// scrapeDMQNodes parses the "dmq.list_nodes" result and returns
+// one "node" metric per node, with its properties as labels.
+func scrapeDMQNodes(records []binrpc.Record) (map[string][]MetricValue, error) {
+	metrics := make(map[string][]MetricValue)
+
+	for _, record := range records {
+		items, err := record.StructItems()
+
+		if err != nil {
+			return nil, err
+		}
+
+		node := DMQNode{}
+
+		for _, item := range items {
+			switch item.Key {
+			case "host":
+				err = item.Value.Scan(&node.Host)
+			case "port":
+				err = item.Value.Scan(&node.Port)
+			case "status":
+				err = item.Value.Scan(&node.Status)
+			case "local":
+				err = item.Value.Scan(&node.Local)
+			default:
+				continue
+			}
+
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		metrics["node"] = append(metrics["node"], MetricValue{
+			Value: 1,
+			Labels: map[string]string{
+				"host":   node.Host,
+				"port":   node.Port,
+				"status": node.Status,
+				"local":  node.Local,
+			},
+		})
 	}
 
 	return metrics, nil

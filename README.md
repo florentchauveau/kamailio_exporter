@@ -119,6 +119,13 @@ For [TLS]( https://kamailio.org/docs/modules/stable/modules/tls.html ) you can e
 #### Dialog
 For [DIALOG](http://kamailio.org/docs/modules/stable/modules/dialog.html) module, you can enable `dlg.stats_active`.
 
+#### DMQ
+If you are using the [DMQ](https://kamailio.org/docs/modules/stable/modules/dmq.html) module, you can enable `dmq.list_nodes` to export the status of DMQ nodes:
+
+```
+kamailio_dmq_list_nodes_node{host="10.0.0.2",local="0",port="5090",status="active"} 1
+```
+
 ### Example for using non-default metrics
 ```bash
 ./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,dispatcher.list,tls.info,dlg.stats_active"
