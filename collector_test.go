@@ -87,9 +87,47 @@ func TestNewCollector(t *testing.T) {
 	if _, err = NewCollector("tcp://localhost:2049", time.Second, "invalid.method", promslog.NewNopLogger()); err == nil {
 		t.Error("expected an error for an invalid method")
 	}
+}
 
-	if _, err = NewCollector("://invalid", time.Second, "tm.stats", promslog.NewNopLogger()); err == nil {
-		t.Error("expected an error for an invalid URI")
+func TestNewCollectorURI(t *testing.T) {
+	tests := []struct {
+		uri     string
+		scheme  string
+		address string
+		invalid bool
+	}{
+		{uri: "tcp://localhost:2049", scheme: "tcp", address: "localhost:2049"},
+		// without slashes, the address parses as "opaque" (#28)
+		{uri: "tcp:localhost:2049", scheme: "tcp", address: "localhost:2049"},
+		{uri: "unix:/var/run/kamailio/kamailio_ctl", scheme: "unix", address: "/var/run/kamailio/kamailio_ctl"},
+		{uri: "unix:///var/run/kamailio/kamailio_ctl", scheme: "unix", address: "/var/run/kamailio/kamailio_ctl"},
+		{uri: "://invalid", invalid: true},
+		// a plain path (missing scheme) used to panic
+		{uri: "/var/run/kamailio/kamailio_ctl", invalid: true},
+		{uri: "tcp://", invalid: true}, // missing address
+	}
+
+	for _, test := range tests {
+		c, err := NewCollector(test.uri, time.Second, "tm.stats", promslog.NewNopLogger())
+
+		if test.invalid {
+			if err == nil {
+				t.Errorf(`expected an error for URI "%s"`, test.uri)
+			}
+
+			continue
+		}
+
+		if err != nil {
+			t.Errorf(`unexpected error for URI "%s": %s`, test.uri, err)
+			continue
+		}
+
+		if c.scheme != test.scheme || c.address != test.address {
+			t.Errorf(`URI "%s": expected scheme "%s" and address "%s", got "%s" and "%s"`,
+				test.uri, test.scheme, test.address, c.scheme, c.address,
+			)
+		}
 	}
 }
 
@@ -193,6 +231,15 @@ func TestCollectorScrapeTCP(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	// the "opaque" URI form (without slashes) must work too (#28)
+	opaque, err := NewCollector("tcp:"+address, time.Second, "tm.stats", promslog.NewNopLogger())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectUp(t, opaque, 1)
 }
 
 func TestCollectorScrapeUnixSocket(t *testing.T) {

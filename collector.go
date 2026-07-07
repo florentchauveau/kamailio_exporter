@@ -93,9 +93,10 @@ type Collector struct {
 	Timeout time.Duration
 	Methods []string
 
-	url    *url.URL
-	mutex  sync.Mutex
-	logger *slog.Logger
+	scheme  string
+	address string
+	mutex   sync.Mutex
+	logger  *slog.Logger
 
 	up            prometheus.Gauge
 	failedScrapes prometheus.Counter
@@ -225,14 +226,30 @@ func NewCollector(uri string, timeout time.Duration, methods string, logger *slo
 	c.Timeout = timeout
 	c.logger = logger
 
-	var url *url.URL
-	var err error
+	parsed, err := url.Parse(c.URI)
 
-	if url, err = url.Parse(c.URI); err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("cannot parse URI: %w", err)
 	}
 
-	c.url = url
+	c.scheme = parsed.Scheme
+	c.address = parsed.Host
+
+	if c.address == "" {
+		// "tcp:localhost:2049" (without slashes) parses into Opaque
+		c.address = parsed.Opaque
+	}
+
+	if parsed.Scheme == "unix" {
+		c.address = parsed.Path
+	}
+
+	if c.scheme == "" || c.address == "" {
+		return nil, fmt.Errorf(
+			`invalid scrape URI "%s": expected "unix:/path/to/socket" or "tcp://host:port"`,
+			uri,
+		)
+	}
 
 	c.Methods = strings.Split(methods, ",")
 
@@ -337,12 +354,7 @@ func (m *MetricValue) LabelValues() []string {
 func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 	c.totalScrapes.Inc()
 
-	address := c.url.Host
-	if c.url.Scheme == "unix" {
-		address = c.url.Path
-	}
-
-	conn, err := net.DialTimeout(c.url.Scheme, address, c.Timeout)
+	conn, err := net.DialTimeout(c.scheme, c.address, c.Timeout)
 
 	if err != nil {
 		return err
