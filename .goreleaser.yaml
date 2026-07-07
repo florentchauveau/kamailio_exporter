@@ -1,0 +1,40 @@
+version: 2
+
+project_name: kamailio_exporter
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/prometheus/common/version.Version={{.Version}}
+      - -X github.com/prometheus/common/version.Revision={{.FullCommit}}
+      - -X github.com/prometheus/common/version.Branch={{.Branch}}
+      - -X github.com/prometheus/common/version.BuildDate={{.Date}}
+      - -X github.com/prometheus/common/version.BuildUser=goreleaser
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+# publish raw binaries, named like the previous releases
+# (kamailio_exporter-linux-amd64)
+archives:
+  - formats: [binary]
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  # mark releases with a semver pre-release suffix (e.g. v1.0.2-rc1)
+  # as pre-releases on GitHub
+  prerelease: auto
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^ci:"

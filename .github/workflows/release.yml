@@ -1,38 +1,39 @@
-name: Build binaries
+name: Release
 
+# runs when a release is published (from the GitHub UI or `gh release create`).
+# goreleaser then attaches the binaries to the existing release,
+# keeping its notes and pre-release flag.
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
-  binaries:
-    name: Cross-platform binary builds
+  goreleaser:
+    name: Release binaries
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: ">=1.18"
+          go-version-file: go.mod
 
-      - name: Create directory
-        run: mkdir dist
-
-      - name: Build linux/amd64
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/kamailio_exporter-linux-amd64
-
-      - name: Build linux/arm64
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/kamailio_exporter-linux-arm64
-
-      - name: Upload build artifacts
-        uses: skx/github-action-publish-binaries@master
+      - name: Run goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: ./dist/*
 
   docker:
     name: Cross-platform Docker images
@@ -40,26 +41,26 @@ jobs:
 
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v5
         with:
           tags: type=semver,pattern={{version}}
           images: florentchauveau/kamailio_exporter
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64
           push: true

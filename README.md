@@ -1,8 +1,8 @@
 # Kamailio Exporter for Prometheus
 [![Go Report Card](https://goreportcard.com/badge/github.com/florentchauveau/kamailio_exporter)](https://goreportcard.com/report/github.com/florentchauveau/kamailio_exporter)
-![CI](https://github.com/florentchauveau/kamailio_exporter/actions/workflows/build.yml/badge.svg)
+![CI](https://github.com/florentchauveau/kamailio_exporter/actions/workflows/ci.yml/badge.svg)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/florentchauveau/kamailio_exporter/blob/master/LICENSE)
-[![Go Reference](https://pkg.go.dev/badge/github.com/florentchauveau/kamailio_exporter.svg)](https://pkg.go.dev/github.com/florentchauveau/kamailio_exporter)
+[![Go Reference](https://pkg.go.dev/badge/github.com/florentchauveau/kamailio_exporter/v2.svg)](https://pkg.go.dev/github.com/florentchauveau/kamailio_exporter/v2)
 
 A [Kamailio](https://www.kamailio.org/) exporter for Prometheus.
 
@@ -28,23 +28,66 @@ Help on flags:
 ./kamailio_exporter --help
 
 Flags:
-      --help                 Show context-sensitive help (also try --help-long
-                             and --help-man).
-  -l, --web.listen-address=":9494"
-                             Address to listen on for web interface and
-                             telemetry.
+  -h, --[no-]help                Show context-sensitive help (also try
+                                 --help-long and --help-man).
       --web.telemetry-path="/metrics"
-                             Path under which to expose metrics.
+                                 Path under which to expose metrics.
   -u, --kamailio.scrape-uri="unix:/var/run/kamailio/kamailio_ctl"
-                             URI on which to scrape kamailio. E.g.
-                             "unix:/var/run/kamailio/kamailio_ctl" or
-                             "tcp://localhost:2049"
+                                 URI on which to scrape kamailio. E.g.
+                                 "unix:/var/run/kamailio/kamailio_ctl" or
+                                 "tcp://localhost:2049"
   -m, --kamailio.methods="tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info"
-                             Comma-separated list of methods to call. E.g.
-                             "tm.stats,sl.stats". Implemented:
-                             tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info,dispatcher.list,tls.info,dlg.stats_active
-  -t, --kamailio.timeout=5s  Timeout for trying to get stats from kamailio.
-  ```
+                                 Comma-separated list of methods to call.
+                                 E.g. "tm.stats,sl.stats". Implemented:
+                                 tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info,dispatcher.list,tls.info,dlg.stats_active
+  -t, --kamailio.timeout=5s      Timeout for trying to get stats from kamailio.
+      --[no-]web.systemd-socket  Use systemd socket activation listeners instead
+                                 of port listeners (Linux only).
+      --web.listen-address=:9494 ...
+                                 Addresses on which to expose metrics and web
+                                 interface. Repeatable for multiple addresses.
+      --web.config.file=""       Path to configuration file that can
+                                 enable TLS or authentication. See:
+                                 https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md
+      --log.level=info           Only log messages with the given severity or
+                                 above. One of: [debug, info, warn, error]
+      --log.format=logfmt        Output format of log messages. One of: [logfmt,
+                                 json]
+      --[no-]version             Show application version.
+```
+
+## Upgrading from v1.x
+
+Version 2.0.0 modernized the exporter. Exposed metrics are unchanged, but
+there are some breaking changes:
+
+- the `-l` short flag was removed: use `--web.listen-address`
+  (which is now repeatable, to listen on multiple addresses)
+- logs are now written in `logfmt` format, or JSON with `--log.format=json`
+- the `--version` output format changed
+
+New in this version: TLS and basic authentication support (see below),
+`--log.level` and `--log.format` flags, and a `kamailio_exporter_build_info`
+metric.
+
+## TLS and basic authentication
+
+The exporter uses the [Prometheus exporter-toolkit](https://github.com/prometheus/exporter-toolkit):
+TLS, basic authentication and systemd socket activation are supported via the
+`--web.config.file` flag. Example:
+
+```yaml
+# web-config.yml
+tls_server_config:
+  cert_file: server.crt
+  key_file: server.key
+```
+
+```bash
+./kamailio_exporter --web.config.file=web-config.yml
+```
+
+See the [web configuration documentation](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md) for all options.
 
 ## Usage
 
@@ -75,6 +118,13 @@ For [TLS]( https://kamailio.org/docs/modules/stable/modules/tls.html ) you can e
 
 #### Dialog
 For [DIALOG](http://kamailio.org/docs/modules/stable/modules/dialog.html) module, you can enable `dlg.stats_active`.
+
+#### DMQ
+If you are using the [DMQ](https://kamailio.org/docs/modules/stable/modules/dmq.html) module, you can enable `dmq.list_nodes` to export the status of DMQ nodes:
+
+```
+kamailio_dmq_list_nodes_node{host="10.0.0.2",local="0",port="5090",status="active"} 1
+```
 
 ### Example for using non-default metrics
 ```bash
@@ -166,7 +216,7 @@ List of exposed metrics:
 
 ## Compiling
 
-With go1.18+, clone the project and:
+With go1.25+, clone the project and:
 
 ```bash
 go build

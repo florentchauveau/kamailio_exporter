@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/url"
 	"regexp"
@@ -93,9 +93,10 @@ type Collector struct {
 	Timeout time.Duration
 	Methods []string
 
-	url   *url.URL
-	mutex sync.Mutex
-	conn  net.Conn
+	scheme  string
+	address string
+	mutex   sync.Mutex
+	logger  *slog.Logger
 
 	up            prometheus.Gauge
 	failedScrapes prometheus.Counter
@@ -123,6 +124,14 @@ type DispatcherTarget struct {
 	SetID int
 }
 
+// DMQNode is a node of the dmq module.
+type DMQNode struct {
+	Host   string
+	Port   string
+	Status string
+	Local  string
+}
+
 const (
 	namespace = "kamailio"
 )
@@ -142,6 +151,7 @@ var (
 		"dispatcher.list",
 		"tls.info",
 		"dlg.stats_active",
+		"dmq.list_nodes",
 	}
 
 	metricsList = map[string][]Metric{
@@ -194,11 +204,14 @@ var (
 			NewMetricGauge("ongoing", "Dialogs ongoing.", "dlg.stats_active"),
 			NewMetricGauge("all", "Dialogs all.", "dlg.stats_active"),
 		},
+		"dmq.list_nodes": {
+			NewMetricGauge("node", "DMQ node status.", "dmq.list_nodes"),
+		},
 	}
 )
 
 // NewMetricGauge is a helper function to create a gauge.
-func NewMetricGauge(name string, help string, method string, labels ...string) Metric {
+func NewMetricGauge(name string, help string, method string) Metric {
 	return Metric{
 		prometheus.GaugeValue,
 		name,
@@ -208,7 +221,7 @@ func NewMetricGauge(name string, help string, method string, labels ...string) M
 }
 
 // NewMetricCounter is a helper function to create a counter.
-func NewMetricCounter(name string, help string, method string, labels ...string) Metric {
+func NewMetricCounter(name string, help string, method string) Metric {
 	return Metric{
 		prometheus.CounterValue,
 		name,
@@ -218,20 +231,37 @@ func NewMetricCounter(name string, help string, method string, labels ...string)
 }
 
 // NewCollector processes uri, timeout and methods and returns a new Collector.
-func NewCollector(uri string, timeout time.Duration, methods string) (*Collector, error) {
+func NewCollector(uri string, timeout time.Duration, methods string, logger *slog.Logger) (*Collector, error) {
 	c := Collector{}
 
 	c.URI = uri
 	c.Timeout = timeout
+	c.logger = logger
 
-	var url *url.URL
-	var err error
+	parsed, err := url.Parse(c.URI)
 
-	if url, err = url.Parse(c.URI); err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("cannot parse URI: %w", err)
 	}
 
-	c.url = url
+	c.scheme = parsed.Scheme
+	c.address = parsed.Host
+
+	if c.address == "" {
+		// "tcp:localhost:2049" (without slashes) parses into Opaque
+		c.address = parsed.Opaque
+	}
+
+	if parsed.Scheme == "unix" {
+		c.address = parsed.Path
+	}
+
+	if c.scheme == "" || c.address == "" {
+		return nil, fmt.Errorf(
+			`invalid scrape URI "%s": expected "unix:/path/to/socket" or "tcp://host:port"`,
+			uri,
+		)
+	}
 
 	c.Methods = strings.Split(methods, ",")
 
@@ -281,8 +311,9 @@ func NewCollector(uri string, timeout time.Duration, methods string) (*Collector
 // "meth.od" is transformed into "meth_od"
 //
 // examples: "kamailio_tm_stats_current"
-//           "kamailio_tm_stats_created_total"
-//           "kamailio_sl_stats_200_total"
+//
+//	"kamailio_tm_stats_created_total"
+//	"kamailio_sl_stats_200_total"
 func (m *Metric) ExportedName() string {
 	suffix := m.Name
 
@@ -331,33 +362,28 @@ func (m *MetricValue) LabelValues() []string {
 	return list
 }
 
-// scrape will connect to the kamailio instance if needed, and push metrics to the Prometheus channel.
+// scrape will connect to the kamailio instance, and push metrics to the Prometheus channel.
 func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 	c.totalScrapes.Inc()
 
-	var err error
-
-	address := c.url.Host
-	if c.url.Scheme == "unix" {
-		address = c.url.Path
-	}
-
-	c.conn, err = net.DialTimeout(c.url.Scheme, address, c.Timeout)
+	conn, err := net.DialTimeout(c.scheme, c.address, c.Timeout)
 
 	if err != nil {
 		return err
 	}
 
-	c.conn.SetDeadline(time.Now().Add(c.Timeout))
+	defer conn.Close()
 
-	defer c.conn.Close()
+	if err = conn.SetDeadline(time.Now().Add(c.Timeout)); err != nil {
+		return err
+	}
 
 	for _, method := range c.Methods {
 		if _, found := metricsList[method]; !found {
 			panic("invalid method requested")
 		}
 
-		metricsScraped, err := c.scrapeMethod(method)
+		metricsScraped, err := c.scrapeMethod(conn, method)
 
 		if err != nil {
 			return err
@@ -391,17 +417,25 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 }
 
 // scrapeMethod will return metrics for one method.
-func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error) {
-	records, err := c.fetchBINRPC(method)
+func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]MetricValue, error) {
+	records, err := fetchBINRPC(conn, method)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// we expect just 1 record of type map
 	if len(records) == 2 && records[0].Type == binrpc.TypeInt && records[0].Value.(int) == 500 {
 		return nil, fmt.Errorf(`invalid response for method "%s": [500] %s`, method, records[1].Value.(string))
-	} else if len(records) != 1 {
+	}
+
+	// "dmq.list_nodes" returns one struct record per node,
+	// unlike the other methods that return a single struct record
+	if method == "dmq.list_nodes" {
+		return scrapeDMQNodes(records)
+	}
+
+	// we expect just 1 record of type map
+	if len(records) != 1 {
 		return nil, fmt.Errorf(`invalid response for method "%s", expected %d record, got %d`,
 			method, 1, len(records),
 		)
@@ -417,38 +451,37 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	metrics := make(map[string][]MetricValue)
 
 	switch method {
-	case "sl.stats":
-		fallthrough
-	case "tm.stats":
+	case "sl.stats", "tm.stats":
 		for _, item := range items {
-			i, _ := item.Value.Int()
+			value, err := c.scanValue(method, item)
+
+			if err != nil {
+				continue
+			}
 
 			if codeRegex.MatchString(item.Key) {
 				// this item is a "code" statistic, eg "200" or "6xx"
 				metrics["codes"] = append(metrics["codes"],
 					MetricValue{
-						Value: float64(i),
+						Value: value,
 						Labels: map[string]string{
 							"code": item.Key,
 						},
 					},
 				)
 			} else {
-				metrics[item.Key] = []MetricValue{{Value: float64(i)}}
+				metrics[item.Key] = []MetricValue{{Value: value}}
 			}
 		}
-	case "tls.info":
-		fallthrough
-	case "core.shmmem":
-		fallthrough
-	case "core.tcp_info":
-		fallthrough
-	case "dlg.stats_active":
-		fallthrough
-	case "core.uptime":
+	case "tls.info", "core.shmmem", "core.tcp_info", "dlg.stats_active", "core.uptime":
 		for _, item := range items {
-			i, _ := item.Value.Int()
-			metrics[item.Key] = []MetricValue{{Value: float64(i)}}
+			value, err := c.scanValue(method, item)
+
+			if err != nil {
+				continue
+			}
+
+			metrics[item.Key] = []MetricValue{{Value: value}}
 		}
 	case "dispatcher.list":
 		targets, err := parseDispatcherTargets(items)
@@ -476,6 +509,67 @@ func (c *Collector) scrapeMethod(method string) (map[string][]MetricValue, error
 	}
 
 	return metrics, nil
+}
+
+// scrapeDMQNodes parses the "dmq.list_nodes" result and returns
+// one "node" metric per node, with its properties as labels.
+func scrapeDMQNodes(records []binrpc.Record) (map[string][]MetricValue, error) {
+	metrics := make(map[string][]MetricValue)
+
+	for _, record := range records {
+		items, err := record.StructItems()
+
+		if err != nil {
+			return nil, err
+		}
+
+		node := DMQNode{}
+
+		for _, item := range items {
+			switch item.Key {
+			case "host":
+				err = item.Value.Scan(&node.Host)
+			case "port":
+				err = item.Value.Scan(&node.Port)
+			case "status":
+				err = item.Value.Scan(&node.Status)
+			case "local":
+				err = item.Value.Scan(&node.Local)
+			default:
+				continue
+			}
+
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		metrics["node"] = append(metrics["node"], MetricValue{
+			Value: 1,
+			Labels: map[string]string{
+				"host":   node.Host,
+				"port":   node.Port,
+				"status": node.Status,
+				"local":  node.Local,
+			},
+		})
+	}
+
+	return metrics, nil
+}
+
+// scanValue converts a struct item value to float64, and logs values
+// that cannot be converted. Depending on the Kamailio version, values are
+// returned as ints or doubles (e.g. core.shmmem, see issue #30).
+func (c *Collector) scanValue(method string, item binrpc.StructItem) (float64, error) {
+	var value float64
+
+	if err := item.Value.Scan(&value); err != nil {
+		c.logger.Error("cannot parse value", "method", method, "key", item.Key, "error", err)
+		return 0, err
+	}
+
+	return value, nil
 }
 
 // parseDispatcherTargets parses the "dispatcher.list" result and returns a list of targets.
@@ -565,9 +659,9 @@ func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, erro
 }
 
 // fetchBINRPC talks to kamailio using the BINRPC protocol.
-func (c *Collector) fetchBINRPC(method string) ([]binrpc.Record, error) {
+func fetchBINRPC(conn net.Conn, method string) ([]binrpc.Record, error) {
 	// WritePacket returns the cookie generated
-	cookie, err := binrpc.WritePacket(c.conn, method)
+	cookie, err := binrpc.WritePacket(conn, method)
 
 	if err != nil {
 		return nil, err
@@ -575,7 +669,7 @@ func (c *Collector) fetchBINRPC(method string) ([]binrpc.Record, error) {
 
 	// the cookie is passed again for verification
 	// we receive records in response
-	records, err := binrpc.ReadPacket(c.conn, cookie)
+	records, err := binrpc.ReadPacket(conn, cookie)
 
 	if err != nil {
 		return nil, err
@@ -599,7 +693,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		c.failedScrapes.Inc()
 		c.up.Set(0)
-		log.Println("[error]", err)
+		c.logger.Error("scrape failed", "error", err)
 	} else {
 		c.up.Set(1)
 	}
