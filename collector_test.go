@@ -75,7 +75,7 @@ func TestMetricValueLabels(t *testing.T) {
 }
 
 func TestNewCollector(t *testing.T) {
-	c, err := NewCollector("tcp://localhost:2049", time.Second, "tm.stats,sl.stats", promslog.NewNopLogger())
+	c, err := NewCollector("tcp://localhost:2049", time.Second, "tm.stats,sl.stats", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -85,8 +85,25 @@ func TestNewCollector(t *testing.T) {
 		t.Errorf("unexpected methods: %v", c.Methods)
 	}
 
-	if _, err = NewCollector("tcp://localhost:2049", time.Second, "invalid.method", promslog.NewNopLogger()); err == nil {
+	if _, err = NewCollector("tcp://localhost:2049", time.Second, "invalid.method", "script", promslog.NewNopLogger()); err == nil {
 		t.Error("expected an error for an invalid method")
+	}
+
+	// group names are normalized with a trailing colon, except "all"
+	// and full statistic names
+	c, err = NewCollector("tcp://localhost:2049", time.Second, "stats.fetch", "script, core,all,script:custom", promslog.NewNopLogger())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(c.statsGroups, []string{"script:", "core:", "all", "script:custom"}) {
+		t.Errorf("unexpected stats groups: %v", c.statsGroups)
+	}
+
+	// "stats.fetch" requires at least one group
+	if _, err = NewCollector("tcp://localhost:2049", time.Second, "stats.fetch", "", promslog.NewNopLogger()); err == nil {
+		t.Error(`expected an error for "stats.fetch" without groups`)
 	}
 }
 
@@ -109,7 +126,7 @@ func TestNewCollectorURI(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		c, err := NewCollector(test.uri, time.Second, "tm.stats", promslog.NewNopLogger())
+		c, err := NewCollector(test.uri, time.Second, "tm.stats", "script", promslog.NewNopLogger())
 
 		if test.invalid {
 			if err == nil {
@@ -197,7 +214,7 @@ func TestCollectorScrapeTCP(t *testing.T) {
 		"tm.stats": payload,
 	})
 
-	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", promslog.NewNopLogger())
+	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +251,7 @@ func TestCollectorScrapeTCP(t *testing.T) {
 	}
 
 	// the "opaque" URI form (without slashes) must work too (#28)
-	opaque, err := NewCollector("tcp:"+address, time.Second, "tm.stats", promslog.NewNopLogger())
+	opaque, err := NewCollector("tcp:"+address, time.Second, "tm.stats", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -251,7 +268,7 @@ func TestCollectorScrapeUnixSocket(t *testing.T) {
 		"tm.stats": payload,
 	})
 
-	c, err := NewCollector("unix:"+socket, time.Second, "tm.stats", promslog.NewNopLogger())
+	c, err := NewCollector("unix:"+socket, time.Second, "tm.stats", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -284,7 +301,7 @@ func TestCollectorScrapeShmmemDoubles(t *testing.T) {
 		"core.shmmem": payload,
 	})
 
-	c, err := NewCollector("tcp://"+address, time.Second, "core.shmmem", promslog.NewNopLogger())
+	c, err := NewCollector("tcp://"+address, time.Second, "core.shmmem", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +374,7 @@ func TestCollectorScrapeDMQNodes(t *testing.T) {
 		"dmq.list_nodes": slices.Concat(node1, node2),
 	})
 
-	c, err := NewCollector("tcp://"+address, time.Second, "dmq.list_nodes", promslog.NewNopLogger())
+	c, err := NewCollector("tcp://"+address, time.Second, "dmq.list_nodes", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -375,6 +392,44 @@ func TestCollectorScrapeDMQNodes(t *testing.T) {
 
 	err = testutil.CollectAndCompare(c, strings.NewReader(expected),
 		"kamailio_dmq_list_nodes_node",
+		"kamailio_up",
+	)
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestCollectorScrapeStatsFetch(t *testing.T) {
+	// "stats.fetch" takes group arguments and returns a struct with
+	// "group.name" keys and string values
+	payload := encodeStructPayload(t, []kv{
+		{"script.destination_down", "4"},
+		{"script.destination_up", "2"},
+	})
+
+	address := startFakeKamailio(t, "tcp", "127.0.0.1:0", map[string][]byte{
+		"stats.fetch script:": payload,
+	})
+
+	c, err := NewCollector("tcp://"+address, time.Second, "stats.fetch", "script", promslog.NewNopLogger())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `
+		# HELP kamailio_stats_fetch_value Statistic value.
+		# TYPE kamailio_stats_fetch_value gauge
+		kamailio_stats_fetch_value{group="script",name="destination_down"} 4
+		kamailio_stats_fetch_value{group="script",name="destination_up"} 2
+		# HELP kamailio_up Was the last scrape successful.
+		# TYPE kamailio_up gauge
+		kamailio_up 1
+	`
+
+	err = testutil.CollectAndCompare(c, strings.NewReader(expected),
+		"kamailio_stats_fetch_value",
 		"kamailio_up",
 	)
 
@@ -401,7 +456,7 @@ func TestCollectorScrapeErrorResponse(t *testing.T) {
 		"tm.stats": payload.Bytes(),
 	})
 
-	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", promslog.NewNopLogger())
+	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -421,7 +476,7 @@ func TestCollectorScrapeConnectionRefused(t *testing.T) {
 	address := listener.Addr().String()
 	listener.Close()
 
-	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", promslog.NewNopLogger())
+	c, err := NewCollector("tcp://"+address, time.Second, "tm.stats", "script", promslog.NewNopLogger())
 
 	if err != nil {
 		t.Fatal(err)
@@ -474,8 +529,10 @@ func startFakeKamailio(t *testing.T, network string, address string, payloads ma
 	return listener.Addr().String()
 }
 
-// serveBINRPC answers BINRPC requests on conn until an error occurs
-// or an unknown method is requested.
+// serveBINRPC answers BINRPC requests on conn until an error occurs or
+// an unknown request is received. Responses are keyed by the full
+// request: the method name followed by its arguments, joined with
+// spaces (e.g. "tm.stats" or "stats.fetch script:").
 func serveBINRPC(conn net.Conn, payloads map[string][]byte) {
 	defer conn.Close()
 
@@ -486,25 +543,40 @@ func serveBINRPC(conn net.Conn, payloads map[string][]byte) {
 			return
 		}
 
-		record, err := binrpc.ReadRecord(conn)
+		payload := make([]byte, header.PayloadLength)
 
-		if err != nil {
+		if _, err = io.ReadFull(conn, payload); err != nil {
 			return
 		}
 
-		method, err := record.String()
+		// the request is one string record for the method name,
+		// followed by string records for its arguments
+		var request []string
+		reader := bytes.NewReader(payload)
 
-		if err != nil {
-			return
+		for reader.Len() > 0 {
+			record, err := binrpc.ReadRecord(reader)
+
+			if err != nil {
+				return
+			}
+
+			s, err := record.String()
+
+			if err != nil {
+				return
+			}
+
+			request = append(request, s)
 		}
 
-		payload, found := payloads[method]
+		response, found := payloads[strings.Join(request, " ")]
 
 		if !found {
 			return
 		}
 
-		if err = writeRawPacket(conn, header.Cookie, payload); err != nil {
+		if err = writeRawPacket(conn, header.Cookie, response); err != nil {
 			return
 		}
 	}

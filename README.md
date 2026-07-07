@@ -41,6 +41,11 @@ Flags:
                                  E.g. "tm.stats,sl.stats". Implemented:
                                  tm.stats,sl.stats,core.shmmem,core.uptime,core.tcp_info,dispatcher.list,tls.info,dlg.stats_active
   -t, --kamailio.timeout=5s      Timeout for trying to get stats from kamailio.
+      --kamailio.stats-groups="script"
+                                 Comma-separated list of statistics groups to
+                                 export with the "stats.fetch" method. E.g.
+                                 "script,core". Only used if "stats.fetch" is
+                                 present in --kamailio.methods.
       --[no-]web.systemd-socket  Use systemd socket activation listeners instead
                                  of port listeners (Linux only).
       --web.listen-address=:9494 ...
@@ -125,6 +130,31 @@ If you are using the [DMQ](https://kamailio.org/docs/modules/stable/modules/dmq.
 ```
 kamailio_dmq_list_nodes_node{host="10.0.0.2",local="0",port="5090",status="active"} 1
 ```
+
+### Custom statistics (script stats)
+
+Statistics created in your Kamailio config with `update_stat()` live in the
+`script` group of the statistics framework:
+
+```
+event_route[dispatcher:dst-down] {
+    update_stat("destination_down", "+1");
+}
+```
+
+Enable the `stats.fetch` method to export them:
+
+```bash
+./kamailio_exporter -m "tm.stats,sl.stats,core.shmmem,core.uptime,stats.fetch"
+```
+
+```
+kamailio_stats_fetch_value{group="script",name="destination_down"} 4
+```
+
+The groups to fetch are controlled with `--kamailio.stats-groups` (default
+`script`). Any group of the statistics framework works (e.g. `script,core`),
+as well as `all`, and full statistic names (e.g. `script:destination_down`).
 
 ### Example for using non-default metrics
 ```bash
