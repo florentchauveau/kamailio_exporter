@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -93,10 +94,11 @@ type Collector struct {
 	Timeout time.Duration
 	Methods []string
 
-	scheme  string
-	address string
-	mutex   sync.Mutex
-	logger  *slog.Logger
+	scheme      string
+	address     string
+	statsGroups []string
+	mutex       sync.Mutex
+	logger      *slog.Logger
 
 	up            prometheus.Gauge
 	failedScrapes prometheus.Counter
@@ -152,6 +154,7 @@ var (
 		"tls.info",
 		"dlg.stats_active",
 		"dmq.list_nodes",
+		"stats.fetch",
 	}
 
 	metricsList = map[string][]Metric{
@@ -207,6 +210,9 @@ var (
 		"dmq.list_nodes": {
 			NewMetricGauge("node", "DMQ node status.", "dmq.list_nodes"),
 		},
+		"stats.fetch": {
+			NewMetricGauge("value", "Statistic value.", "stats.fetch"),
+		},
 	}
 )
 
@@ -230,8 +236,8 @@ func NewMetricCounter(name string, help string, method string) Metric {
 	}
 }
 
-// NewCollector processes uri, timeout and methods and returns a new Collector.
-func NewCollector(uri string, timeout time.Duration, methods string, logger *slog.Logger) (*Collector, error) {
+// NewCollector processes uri, timeout, methods and statsGroups, and returns a new Collector.
+func NewCollector(uri string, timeout time.Duration, methods string, statsGroups string, logger *slog.Logger) (*Collector, error) {
 	c := Collector{}
 
 	c.URI = uri
@@ -282,6 +288,27 @@ func NewCollector(uri string, timeout time.Duration, methods string, logger *slo
 				strings.Join(availableMethods, ","),
 			)
 		}
+	}
+
+	for _, group := range strings.Split(statsGroups, ",") {
+		group = strings.TrimSpace(group)
+
+		if group == "" {
+			continue
+		}
+
+		// the group syntax of "stats.fetch" requires a trailing
+		// colon (e.g. "script:"), except for "all" and full
+		// statistic names (e.g. "script:destination_down")
+		if group != "all" && !strings.Contains(group, ":") {
+			group += ":"
+		}
+
+		c.statsGroups = append(c.statsGroups, group)
+	}
+
+	if len(c.statsGroups) == 0 && slices.Contains(c.Methods, "stats.fetch") {
+		return nil, errors.New(`method "stats.fetch" requires at least one group in statsGroups`)
 	}
 
 	c.up = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -418,7 +445,13 @@ func (c *Collector) scrape(ch chan<- prometheus.Metric) error {
 
 // scrapeMethod will return metrics for one method.
 func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]MetricValue, error) {
-	records, err := fetchBINRPC(conn, method)
+	request := []string{method}
+
+	if method == "stats.fetch" {
+		request = append(request, c.statsGroups...)
+	}
+
+	records, err := fetchBINRPC(conn, request...)
 
 	if err != nil {
 		return nil, err
@@ -482,6 +515,29 @@ func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]Met
 			}
 
 			metrics[item.Key] = []MetricValue{{Value: value}}
+		}
+	case "stats.fetch":
+		// keys are "group.name", e.g. "script.destination_down"
+		for _, item := range items {
+			value, err := c.scanValue(method, item)
+
+			if err != nil {
+				continue
+			}
+
+			group, name, found := strings.Cut(item.Key, ".")
+
+			if !found {
+				group, name = "", item.Key
+			}
+
+			metrics["value"] = append(metrics["value"], MetricValue{
+				Value: value,
+				Labels: map[string]string{
+					"group": group,
+					"name":  name,
+				},
+			})
 		}
 	case "dispatcher.list":
 		targets, err := parseDispatcherTargets(items)
@@ -659,9 +715,10 @@ func parseDispatcherTargets(items []binrpc.StructItem) ([]DispatcherTarget, erro
 }
 
 // fetchBINRPC talks to kamailio using the BINRPC protocol.
-func fetchBINRPC(conn net.Conn, method string) ([]binrpc.Record, error) {
+// The request is a method name, optionally followed by its arguments.
+func fetchBINRPC(conn net.Conn, request ...string) ([]binrpc.Record, error) {
 	// WritePacket returns the cookie generated
-	cookie, err := binrpc.WritePacket(conn, method)
+	cookie, err := binrpc.WritePacket(conn, request...)
 
 	if err != nil {
 		return nil, err
