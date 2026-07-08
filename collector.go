@@ -508,6 +508,12 @@ func (c *Collector) scrapeMethod(conn net.Conn, method string) (map[string][]Met
 		}
 	case "tls.info", "core.shmmem", "core.tcp_info", "dlg.stats_active", "core.uptime":
 		for _, item := range items {
+			// skip fields that are not exported metrics, such as the
+			// "now" and "up_since" date strings of "core.uptime"
+			if !isDefinedMetric(method, item.Key) {
+				continue
+			}
+
 			value, err := c.scanValue(method, item)
 
 			if err != nil {
@@ -626,6 +632,17 @@ func (c *Collector) scanValue(method string, item binrpc.StructItem) (float64, e
 	}
 
 	return value, nil
+}
+
+// isDefinedMetric reports whether key is a defined metric of method.
+func isDefinedMetric(method string, key string) bool {
+	for _, metric := range metricsList[method] {
+		if metric.Name == key {
+			return true
+		}
+	}
+
+	return false
 }
 
 // parseDispatcherTargets parses the "dispatcher.list" result and returns a list of targets.

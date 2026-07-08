@@ -346,6 +346,55 @@ func TestCollectorScrapeShmmemDoubles(t *testing.T) {
 	}
 }
 
+func TestCollectorScrapeUptime(t *testing.T) {
+	// "core.uptime" also returns "now" and "up_since" as date strings;
+	// they are not exported and must not trigger parse error logs.
+	// The reply shape is identical from Kamailio 4.4 through master
+	// (core_cmd.c core_uptime): "now"/"up_since" strings (4.x keeps
+	// ctime's trailing newline, "now" is absent if ctime_r fails) and
+	// "uptime" always an int
+	payload := encodeStructPayload(t, []kv{
+		{"now", "Wed Jul  8 09:37:43 2026"},
+		{"up_since", "Wed Jul  8 09:37:36 2026"},
+		{"uptime", 7},
+	})
+
+	address := startFakeKamailio(t, "tcp", "127.0.0.1:0", map[string][]byte{
+		"core.uptime": payload,
+	})
+
+	var logs bytes.Buffer
+	logger := promslog.New(&promslog.Config{Writer: &logs})
+
+	c, err := NewCollector("tcp://"+address, time.Second, "core.uptime", "script", logger)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `
+		# HELP kamailio_core_uptime_uptime_total Uptime in seconds.
+		# TYPE kamailio_core_uptime_uptime_total counter
+		kamailio_core_uptime_uptime_total 7
+		# HELP kamailio_up Was the last scrape successful.
+		# TYPE kamailio_up gauge
+		kamailio_up 1
+	`
+
+	err = testutil.CollectAndCompare(c, strings.NewReader(expected),
+		"kamailio_core_uptime_uptime_total",
+		"kamailio_up",
+	)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if strings.Contains(logs.String(), "cannot parse value") {
+		t.Errorf("unexpected parse error logged: %s", logs.String())
+	}
+}
+
 func TestCollectorScrapeDMQNodes(t *testing.T) {
 	// "dmq.list_nodes" returns one struct record per node
 	node1 := encodeStructPayload(t, []kv{
