@@ -34,6 +34,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # pin goreleaser to the tag that triggered the workflow:
+          # auto-detection picks the wrong tag when several tags point
+          # at the same commit (e.g. v2.0.0 tagged on the same commit
+          # as v2.0.0-rc4), and then uploads to the wrong release
+          GORELEASER_CURRENT_TAG: ${{ github.event.release.tag_name }}
 
   docker:
     name: Cross-platform Docker images
